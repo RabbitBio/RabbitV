@@ -38,8 +38,8 @@ uint64 Duplicate::seq2int(const char* data, int start, int keylen, bool& valid) 
 	}
 	return res >> 2;
 }
-/*
-uint64 Duplicate::seq2int(const char* data, int start, int keylen, bool& valid) {
+
+uint64 Duplicate::seq2int2(const char* data, int start, int keylen, bool& valid) {
     uint64 ret = 0;
     for(int i=0; i<keylen; i++) {
         switch(data[start + i]) {
@@ -65,7 +65,7 @@ uint64 Duplicate::seq2int(const char* data, int start, int keylen, bool& valid) 
     }
     return ret;
 }
-*/
+
 
 void Duplicate::addRecord(uint32 key, uint64 kmer32, uint8 gc) {
     if(mCounts[key] == 0) {
@@ -99,7 +99,8 @@ void Duplicate::statRead(Read* r) {
     if(!valid)
         return;
 
-    uint64 kmer32 = seq2int(data, start2, 32, valid);
+    //uint64 kmer32 = seq2int(data, start2, 32, valid);
+    uint64 kmer32 = seq2int2(data, start2, 32, valid);
     if(!valid)
         return;
 
@@ -132,7 +133,8 @@ void Duplicate::statPair(Read* r1, Read* r2) {
     if(!valid)
         return;
 
-    uint64 kmer32 = seq2int(data2, 0, 32, valid);
+    uint64 kmer32 = seq2int2(data2, 0, 32, valid);
+    //uint64 kmer32 = seq2int(data2, 0, 32, valid);
     if(!valid)
         return;
 

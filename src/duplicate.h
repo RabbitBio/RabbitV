@@ -18,6 +18,7 @@ public:
     void statRead(Read* r1);
     void statPair(Read* r1, Read* r2);
     uint64 seq2int(const char* data, int start, int keylen, bool& valid);
+    uint64 seq2int2(const char* data, int start, int keylen, bool& valid);
     void addRecord(uint32 key, uint64 kmer32, uint8 gc);
 
     // make histogram and get duplication rate
