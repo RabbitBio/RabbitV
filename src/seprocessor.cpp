@@ -10,8 +10,17 @@
 #include "htmlreporter.h"
 #include "adaptertrimmer.h"
 #include "polyx.h"
+// modified
+#include "io/FastxStream.h"
+#include "io/FastxChunk.h"
+#include <string>
+#include "io/DataQueue.h"
+#include "io/Formater.h"
+typedef mash::core::TDataQueue<mash::fq::FastqDataChunk> FqChunkQueue;
+// modified over
 
 SingleEndProcessor::SingleEndProcessor(Options* opt){
+    readNum = 0;
     mOptions = opt;
     mProduceFinished = false;
     mFinishedThreads = 0;
@@ -63,7 +72,13 @@ bool SingleEndProcessor::process(){
     initOutput();
 
     initPackRepository();
-    std::thread producer(std::bind(&SingleEndProcessor::producerTask, this));
+
+    //modified 
+    mash::fq::FastqDataPool* fastqPool = new mash::fq::FastqDataPool(256, 1 << 22);
+    FqChunkQueue queue1(128, 1);
+
+    //modified over
+    std::thread producer(std::bind(&SingleEndProcessor::producerTask, this,fastqPool,std::ref(queue1)));
 
     //TODO: get the correct cycles
     int cycle = 151;
@@ -75,7 +90,7 @@ bool SingleEndProcessor::process(){
 
     std::thread** threads = new thread*[mOptions->thread];
     for(int t=0; t<mOptions->thread; t++){
-        threads[t] = new std::thread(std::bind(&SingleEndProcessor::consumerTask, this, configs[t]));
+        threads[t] = new std::thread(std::bind(&SingleEndProcessor::consumerTask, this, configs[t],fastqPool,std::ref(queue1)));
     }
 
     std::thread* leftWriterThread = NULL;
@@ -237,16 +252,23 @@ bool SingleEndProcessor::processSingleEnd(ReadPack* pack, ThreadConfig* config){
             delete r1;
     }
     // if splitting output, then no lock is need since different threads write different files
-    mOutputMtx.lock();
-    if(mOptions->outputToSTDOUT) {
-        fwrite(outstr.c_str(), 1, outstr.length(), stdout);
-    }
-
     if(mLeftWriter) {
         char* ldata = new char[outstr.size()];
         memcpy(ldata, outstr.c_str(), outstr.size());
         mLeftWriter->input(ldata, outstr.size());
     }
+
+    mOutputMtx.lock();
+    if(mOptions->outputToSTDOUT) {
+        fwrite(outstr.c_str(), 1, outstr.length(), stdout);
+    }
+/*
+    if(mLeftWriter) {
+        char* ldata = new char[outstr.size()];
+        memcpy(ldata, outstr.c_str(), outstr.size());
+        mLeftWriter->input(ldata, outstr.size());
+    }
+*/
     mOutputMtx.unlock();
 
     config->markProcessed(pack->count);
@@ -288,7 +310,7 @@ void SingleEndProcessor::producePack(ReadPack* pack){
     //lock.unlock();
 }
 
-void SingleEndProcessor::consumePack(ThreadConfig* config){
+void SingleEndProcessor::consumePack(ThreadConfig* config,ReadPack* pack){
     ReadPack* data;
     //std::unique_lock<std::mutex> lock(mRepo.mtx);
     // buffer is empty, just wait here.
@@ -300,43 +322,71 @@ void SingleEndProcessor::consumePack(ThreadConfig* config){
         //mRepo.repoNotEmpty.wait(lock);
     }*/
 
-    mInputMtx.lock();
-    while(mRepo.writePos <= mRepo.readPos) {
-        usleep(1000);
-        if(mProduceFinished) {
-            mInputMtx.unlock();
-            return;
-        }
-    }
-    data = mRepo.packBuffer[mRepo.readPos];
-    mRepo.readPos++;
+    // mmodified
+    //mInputMtx.lock();
+    //while(mRepo.writePos <= mRepo.readPos) {
+    //    usleep(1000);
+    //    if(mProduceFinished) {
+    //        mInputMtx.unlock();
+    //        return;
+    //    }
+    //}
+    //data = mRepo.packBuffer[mRepo.readPos]; //读一个pack
+    //mRepo.readPos++;
 
     /*if (mRepo.readPos >= PACK_NUM_LIMIT)
         mRepo.readPos = 0;*/
-    mInputMtx.unlock();
+    //mInputMtx.unlock();
 
     //lock.unlock();
     //mRepo.repoNotFull.notify_all();
+    data = pack;
 
     processSingleEnd(data, config);
 
 }
 
-void SingleEndProcessor::producerTask()
+void SingleEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq)
 {
     if(mOptions->verbose)
-        loginfo("start to load data");
-    long lastReported = 0;
-    int slept = 0;
-    long readNum = 0;
-    bool splitSizeReEvaluated = false;
-    Read** data = new Read*[PACK_SIZE];
-    memset(data, 0, sizeof(Read*)*PACK_SIZE);
-    FastqReader reader(mOptions->in1, true, mOptions->phred64);
-    int count=0;
+        loginfo("start to load data"); //debug information
+    //long lastReported = 0;
+    //int slept = 0; 
+    //long readNum = 0; // 之前累积读取的read的个数
+    //bool splitSizeReEvaluated = false;
+    //Read** data = new Read*[PACK_SIZE];
+    //memset(data, 0, sizeof(Read*)*PACK_SIZE);
+    //FastqReader reader(mOptions->in1, true, mOptions->phred64); // 
+    
+    // modified
+    mash::fq::FastqFileReader* fqFileReader;
+    // 是否是压缩文件
+    bool isZipped = false;
+    if (ends_with(mOptions->in1, ".gz")) {
+        isZipped = true;
+    }
+    fqFileReader = new mash::fq::FastqFileReader(mOptions->in1, (*fastqPool), "",isZipped);
+    int n_chunks = 0;
+    int line_sum = 0;
+    while (true) {
+        mash::fq::FastqChunk* fqChunk = new mash::fq::FastqChunk;
+        fqChunk->chunk = fqFileReader->readNextChunk();
+        if (fqChunk->chunk == NULL)
+            break;
+        n_chunks++;
+       // std::cout << "readed chunk: " << n_chunks << std::endl;
+        dq.Push(n_chunks, fqChunk->chunk);
+    }
+    dq.SetCompleted();
+    delete fqFileReader;
+    std::cout << "file " << mOptions->in1 << " has " << n_chunks << " chunks" << std::endl;
+    // modified over
+    
+    /*
+    int count=0; // data or pack中read的个数
     bool needToBreak = false;
     while(true){
-        Read* read = reader.read();
+        Read* read = reader.read(); // read()方法返回一个read对象指针
         // TODO: put needToBreak here is just a WAR for resolve some unidentified dead lock issue 
         if(!read || needToBreak){
             // the last pack
@@ -353,10 +403,11 @@ void SingleEndProcessor::producerTask()
         }
         data[count] = read;
         count++;
-        // configured to process only first N reads
+        // configured to process only first N reads 只读入前readToProcess条read
         if(mOptions->readsToProcess >0 && count + readNum >= mOptions->readsToProcess) {
             needToBreak = true;
         }
+        // debug时每百万条read后打印一次信息
         if(mOptions->verbose && count + readNum >= lastReported + 1000000) {
             lastReported = count + readNum;
             string msg = "loaded " + to_string((lastReported/1000000)) + "M reads";
@@ -372,6 +423,7 @@ void SingleEndProcessor::producerTask()
             data = new Read*[PACK_SIZE];
             memset(data, 0, sizeof(Read*)*PACK_SIZE);
             // if the consumer is far behind this producer, sleep and wait to limit memory usage
+            // 读的过快时 等待consumer 为什么要等？？？
             while(mRepo.writePos - mRepo.readPos > PACK_IN_MEM_LIMIT){
                 //cerr<<"sleep"<<endl;
                 slept++;
@@ -380,6 +432,7 @@ void SingleEndProcessor::producerTask()
             readNum += count;
             // if the writer threads are far behind this producer, sleep and wait
             // check this only when necessary
+            // 500 packs
             if(readNum % (PACK_SIZE * PACK_IN_MEM_LIMIT) == 0 && mLeftWriter) {
                 while(mLeftWriter->bufferLength() > PACK_IN_MEM_LIMIT) {
                     slept++;
@@ -401,10 +454,11 @@ void SingleEndProcessor::producerTask()
                     if(mOptions->split.size <= 0)
                         mOptions->split.size = 1;
                 }
-            }*/
+            }* /
         }
-    }
-
+    }//读取read完成
+    */
+    
     //std::unique_lock<std::mutex> lock(mRepo.readCounterMtx);
     mProduceFinished = true;
     if(mOptions->verbose)
@@ -412,45 +466,115 @@ void SingleEndProcessor::producerTask()
     //lock.unlock();
 
     // if the last data initialized is not used, free it
-    if(data != NULL)
-        delete[] data;
+    //if(data != NULL)
+    //    delete[] data;
 }
 
-void SingleEndProcessor::consumerTask(ThreadConfig* config)
+void SingleEndProcessor::consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq)
 {
-    while(true) {
-        if(config->canBeStopped()){
-            mFinishedThreads++;
-            break;
-        }
-        while(mRepo.writePos <= mRepo.readPos) {
-            if(mProduceFinished)
-                break;
-            usleep(1000);
-        }
-        //std::unique_lock<std::mutex> lock(mRepo.readCounterMtx);
-        if(mProduceFinished && mRepo.writePos == mRepo.readPos){
-            mFinishedThreads++;
-            if(mOptions->verbose) {
-                string msg = "thread " + to_string(config->getThreadId() + 1) + " data processing completed";
-                loginfo(msg);
-            }
-            //lock.unlock();
-            break;
-        }
-        if(mProduceFinished){
-            if(mOptions->verbose) {
-                string msg = "thread " + to_string(config->getThreadId() + 1) + " is processing the " + to_string(mRepo.readPos) + " / " + to_string(mRepo.writePos) + " pack";
-                loginfo(msg);
-            }
-            consumePack(config);
-            //lock.unlock();
-        } else {
-            //lock.unlock();
-            consumePack(config);
-        }
-    }
+    //while(true) {
+    //    if(config->canBeStopped()){
+    //        mFinishedThreads++;
+    //        break;
+    //    }
 
+        // modified
+        mash::int64 seq_count_start = 0;
+        mash::int64 seq_count = 0;
+        mash::int64 id = 0;
+        std::vector<neoReference> data;
+        mash::fq::FastqChunk* fqChunk = new mash::fq::FastqChunk;
+        data.reserve(10000);
+        Read** data2 = new Read*[PACK_SIZE];
+        memset(data2, 0, sizeof(Read*)*PACK_SIZE);
+        int count = 0; // data or pack中read的个数
+        bool needToBreak = false;
+        while (dq.Pop(id, fqChunk->chunk)) {
+            seq_count = mash::fq::chunkFormat(fqChunk, data, true);
+            //Read** data2 = new Read*[seq_count];
+            //memset(data2, 0, sizeof(Read*)*seq_count);
+            // 将该FastqDataChunk进行format 转化成pack的形式 并存储到mRepo中
+            for (mash::int64 start = seq_count_start; start < seq_count_start + seq_count; start++) {
+                std::string name = std::string((char*)data[start].base + data[start].pname, data[start].lname);
+                std::string seq = std::string((char*)data[start].base + data[start].pseq, data[start].lseq);
+                std::string strand = std::string((char*)data[start].base + data[start].pstrand, data[start].lstrand);
+                std::string quality = std::string((char*)data[start].base + data[start].pqual, data[start].lqual);
+                Read* read = new Read(name, seq, strand, quality, mOptions->phred64);
+                data2[count] = read;
+                count++;
+                // configured to process only first N reads 只读入前readToProcess条read
+                // TODO
+                if (mOptions->readsToProcess > 0 && count + readNum >= mOptions->readsToProcess) {
+                    needToBreak = true;
+                }
+                // a full pack
+                if (count == PACK_SIZE || needToBreak) {
+                    ReadPack* pack = new ReadPack;
+                    pack->data = data2;
+                    pack->count = count;
+                    //producePack(pack);
+                    consumePack(config,pack);
+                    //re-initialize data for next pack
+                    data2 = new Read * [PACK_SIZE];
+                    memset(data2, 0, sizeof(Read*) * PACK_SIZE);
+                    readNum += count;
+                    // reset count to 0
+                    count = 0;
+                }
+            }
+            seq_count_start += seq_count;
+            fastqPool->Release(fqChunk->chunk);
+        }
+        if (count > 0) {
+            ReadPack* pack = new ReadPack;
+            pack->data = data2;
+            pack->count = count;
+            consumePack(config, pack);
+            readNum += count; 
+        }
+        //// debug时每百万条read后打印一次信息
+        //if(mOptions->verbose && count + readNum >= lastReported + 1000000) {
+        //    lastReported = count + readNum;
+        //    string msg = "loaded " + to_string((lastReported/1000000)) + "M reads";
+        //    loginfo(msg);
+        //}
+        
+        //modified over
+
+        //while(mRepo.writePos <= mRepo.readPos) {
+        //    if(mProduceFinished)
+        //        break;
+        //    usleep(1000); // 等待生产者产生read
+        //}
+        //std::unique_lock<std::mutex> lock(mRepo.readCounterMtx);
+        //if(mProduceFinished && mRepo.writePos == mRepo.readPos){
+        //    mFinishedThreads++;
+        //    if(mOptions->verbose) {
+        //        string msg = "thread " + to_string(config->getThreadId() + 1) + " data processing completed";
+        //        loginfo(msg);
+        //    }
+        //    //lock.unlock();
+        //    break;
+        //}
+        //if(mProduceFinished){
+        //    if(mOptions->verbose) {
+        //        string msg = "thread " + to_string(config->getThreadId() + 1) + " is processing the " + to_string(mRepo.readPos) + " / " + to_string(mRepo.writePos) + " pack";
+        //        loginfo(msg);
+        //    }
+        //    consumePack(config);
+        //    //lock.unlock();
+        //} else {
+        //    //lock.unlock();
+        //    consumePack(config);
+        //}
+    //}
+    //std::unique_lock<std::mutex> lock(mRepo.readCounterMtx);
+    mFinishedThreads++;
+    if(mOptions->verbose) {
+        string msg = "thread " + to_string(config->getThreadId() + 1) + " data processing completed";
+        loginfo(msg);
+    }
+    //lock.unlock();
     if(mFinishedThreads == mOptions->thread) {
         if(mLeftWriter)
             mLeftWriter->setInputCompleted();

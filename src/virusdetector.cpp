@@ -45,7 +45,7 @@ void VirusDetector::report() {
         mKmerCollection->report();
     }
     if(mGenomes) {
-        mGenomes->report();
+        //mGenomes->report();
     }
 }
 

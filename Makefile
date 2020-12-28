@@ -1,6 +1,7 @@
 DIR_INC := ./inc
 DIR_SRC := ./src
 DIR_OBJ := ./obj
+DIR_IO := ./src/io
 
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
@@ -8,7 +9,9 @@ INCLUDE_DIRS ?=
 LIBRARY_DIRS ?=
 
 SRC := $(wildcard ${DIR_SRC}/*.cpp)
+IO := $(wildcard ${DIR_IO}/*.cpp)
 OBJ := $(patsubst %.cpp,${DIR_OBJ}/%.o,$(notdir ${SRC}))
+OBJ += $(patsubst %.cpp,${DIR_IO}/%.o,$(notdir ${IO}))
 
 TARGET := RabbitV
 

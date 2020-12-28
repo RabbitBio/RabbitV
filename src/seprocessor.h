@@ -16,6 +16,11 @@
 #include "writerthread.h"
 #include "duplicate.h"
 #include "virusdetector.h"
+#include "io/FastxStream.h"
+#include "io/FastxChunk.h"
+#include "io/DataQueue.h"
+#include "io/Formater.h"
+
 
 using namespace std;
 
@@ -25,6 +30,7 @@ struct ReadPack {
 };
 
 typedef struct ReadPack ReadPack;
+typedef mash::core::TDataQueue<mash::fq::FastqDataChunk> FqChunkQueue;
 
 struct ReadRepository {
     ReadPack** packBuffer;
@@ -49,9 +55,9 @@ private:
     void initPackRepository();
     void destroyPackRepository();
     void producePack(ReadPack* pack);
-    void consumePack(ThreadConfig* config);
-    void producerTask();
-    void consumerTask(ThreadConfig* config);
+    void consumePack(ThreadConfig* config, ReadPack* pack);
+    void producerTask(mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq);
+    void consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool,FqChunkQueue& dq);
     void initConfig(ThreadConfig* config);
     void initOutput();
     void closeOutput();
@@ -71,6 +77,7 @@ private:
     WriterThread* mLeftWriter;
     Duplicate* mDuplicate;
     VirusDetector* mVirusDetector;
+    atomic_long readNum;
 };
 
 
