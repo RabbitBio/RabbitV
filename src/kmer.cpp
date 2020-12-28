@@ -167,28 +167,22 @@ void Kmer::reportJSON(ofstream& ofs) {
 }
 
 uint64 Kmer::seq2uint64(string& seq, uint32 pos, uint32 len, bool& valid) {
-    uint64 key = 0;
-    for(uint32 i=0; i<len; i++) {
-        key = (key << 2);
-        switch(seq[pos +i]) {
-            case 'A':
-                key += 0;
-                break;
-            case 'T':
-                key += 2;
-                break;
-            case 'C':
-                key += 1;
-                break;
-            case 'G':
-                key += 3;
-                break;
-            case 'N':
-            default:
-                valid = false;
-                return 0;
+
+    uint8_t mask = 0x06; //FIXME: not general only works for DNA sequences, it's just a trick.
+	uint64_t res = 0;
+	for(int i = pos; i < pos+ len; i++)
+	{
+        res <<= 2;
+        if(seq[i]=='N'){
+            valid = 0;
+            return 0;
         }
-    }
+		uint8_t meri = (uint8_t)seq[i];
+		meri &= mask;
+		meri >>= 1;
+		res |= (uint64_t)meri;
+	}
+	
     valid = true;
-    return key;
+    return res;
 }
