@@ -350,6 +350,7 @@ class FastqFileReader {
   bool ReadNextChunk(FastqDataChunk *chunk_);
   bool ReadNextPairedChunk(FastqDataChunk *chunk_);
   FastqDataPairChunk *readNextPairChunk();
+  FastqDataChunk *readNextPairChunkInterleaved();
   void Close() {
     if (mFile != NULL) {
       FCLOSE(mFile);

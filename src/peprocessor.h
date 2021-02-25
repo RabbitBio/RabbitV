@@ -18,6 +18,16 @@
 #include "duplicate.h"
 #include "virusdetector.h"
 
+// modified
+#include "io/FastxStream.h"
+#include "io/FastxChunk.h"
+#include <string>
+#include "io/DataQueue.h"
+#include "io/Formater.h"
+typedef mash::core::TDataQueue<mash::fq::FastqDataPairChunk> FqPairChunkQueue;
+typedef mash::core::TDataQueue<mash::fq::FastqDataChunk> FqChunkQueue;
+// modified over
+
 
 using namespace std;
 
@@ -52,9 +62,14 @@ private:
     void initPackRepository();
     void destroyPackRepository();
     void producePack(ReadPairPack* pack);
-    void consumePack(ThreadConfig* config);
-    void producerTask();
-    void consumerTask(ThreadConfig* config);
+    // modified
+    //void consumePack(ThreadConfig* config);
+    void consumePack(ThreadConfig* config, ReadPairPack* data);
+    //void producerTask();
+    void producerTask(mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue& dq,FqChunkQueue& dq2);
+    // void consumerTask(ThreadConfig* config);
+    void consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue& dq,FqChunkQueue& dq2);
+    // modified over
     void initConfig(ThreadConfig* config);
     void initOutput();
     void closeOutput();
@@ -80,6 +95,7 @@ private:
     WriterThread* mRightWriter;
     Duplicate* mDuplicate;
     VirusDetector* mVirusDetector;
+    atomic_long readNum;
 };
 
 

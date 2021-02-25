@@ -176,7 +176,7 @@ bool Options::validate() {
         thread = 1;
     } else if(thread > 16) {
         cerr << "WARNING: fastv uses up to 16 threads although you specified " << thread << endl;
-        thread = 16;
+        // thread = 16;
     }
 
     if(positiveThreshold < 0.001 || positiveThreshold > 100)
