@@ -386,7 +386,7 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
   if (r > 0) {
     if (r == toRead) {
       chunkEnd =
-        cbufSize - (1 << 13);  // SwapBufferSize; // SwapBuffersize defined in FastqStream.h as constant value : 1<<13;
+        cbufSize -  SwapBufferSize; // (1 << 13);  // SwapBufferSize; // SwapBuffersize defined in FastqStream.h as constant value : 1<<13;
       chunkEnd = GetNextRecordPos(data, chunkEnd, cbufSize);
     } else {
       // chunkEnd = r;
@@ -414,8 +414,8 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
   if (r > 0) {
     if (r == toRead) {
       chunkEnd_right =
-        cbufSize_right -
-        (1 << 13);  // SwapBufferSize; // SwapBuffersize defined in FastqStream.h as constant value : 1<<13;
+        cbufSize_right -  SwapBufferSize;
+       // (1 << 13);  // SwapBufferSize; // SwapBuffersize defined in FastqStream.h as constant value : 1<<13;
       chunkEnd_right = GetNextRecordPos(data_right, chunkEnd_right, cbufSize_right);
     } else {
       // chunkEnd_right += r;
@@ -436,7 +436,7 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
     if (difference > 0) {
       // move rightPart difference lines before
       // std::cout << "difference > 0 "<<left_line_count <<" " <<right_line_count << " " << difference <<std::endl;
-      std::cout << "start: " << chunkEnd_right << std::endl;
+   //   std::cout << "start: " << chunkEnd_right << std::endl;
       // while(true){
       while (chunkEnd_right < cbufSize) {
         if (data_right[chunkEnd_right] == '\n') {
@@ -448,7 +448,7 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
         }
         chunkEnd_right++;
       }
-      std::cout << "end: " << chunkEnd_right << std::endl;
+  //    std::cout << "end: " << chunkEnd_right << std::endl;
 
     } else if (difference < 0) {
       // move leftPart difference lines before
