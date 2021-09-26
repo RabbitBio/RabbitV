@@ -149,8 +149,9 @@ bool VirusDetector::scan(string& seq) {
         if(mKmerCollection) {
             uint32 gid = mKmerCollection->add(key);
             if(gid > 0) {
-                if(lastGenomeID!=0 && gid!=lastGenomeID)
+                if(lastGenomeID!=0 && gid!=lastGenomeID){
                     onlyHitOneGenome = false;
+                }
                 lastGenomeID = gid;
             }
         }
