@@ -381,12 +381,14 @@ void HtmlReporter::printDetectionResult(ofstream& ofs, Kmer* kmer) {
     ofs << "<div id='detection_result'>\n";
     ofs << "<table class='summary_table' style='width:800px'>\n";
     string result;
-    if(kmer->getMeanHit() >= mOptions->positiveThreshold)
+    //if(kmer->getMeanHit() >= mOptions->positiveThreshold)
+    if(kmer->getCoverage() >= mOptions->positiveThreshold)
         result = "<font color='red'><B>POSITIVE<B></font>";
     else
         result = "NEGATIVE";
     outputRow(ofs, "Detection result for target k-mer file:", result);
-    outputRow(ofs, "Mean depth of k-mer coverage:", to_string(kmer->getMeanHit()));
+    outputRow(ofs, "k-mer coverage:", to_string(kmer->getCoverage()));
+    outputRow(ofs, "Mean depth of k-mer:", to_string(kmer->getMeanHit()));
     outputRow(ofs, "Threshold to be positive:", to_string(mOptions->positiveThreshold));
     ofs << "</table>\n";
 

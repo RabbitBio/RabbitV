@@ -21,6 +21,12 @@
 typedef mash::core::TDataQueue<mash::fq::FastqDataPairChunk>FqPairChunkQueue;
 typedef mash::core::TDataQueue<mash::fq::FastqDataChunk>FqChunkQueue;
 // modified over
+#include <sys/time.h>
+double get_time(){
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000;
+}
 
 PairEndProcessor::PairEndProcessor(Options* opt){
     readNum = 0;
@@ -45,7 +51,11 @@ PairEndProcessor::PairEndProcessor(Options* opt){
         mDuplicate = new Duplicate(mOptions);
     }
 
+		cout << "detector init start" << endl;
+		double start_time = get_time();
     mVirusDetector = new VirusDetector(opt);
+		double end_time = get_time();
+		cout << "detector init end, time: " << end_time - start_time << endl;
 }
 
 PairEndProcessor::~PairEndProcessor() {

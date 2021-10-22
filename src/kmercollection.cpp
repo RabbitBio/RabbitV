@@ -197,7 +197,7 @@ void KmerCollection::init()
             mMedianHits.push_back(0);
             mGenomeReads.push_back(0);
             mNumber++;
-            //cerr<<mNumber<<": " << linestr << endl;
+            cerr << mNumber << ": " << linestr << endl;
             continue;
         }
 
