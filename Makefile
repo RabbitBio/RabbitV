@@ -18,13 +18,13 @@ TARGET := RabbitV
 BIN_TARGET := ${TARGET}
 
 CXX ?= g++
-CXXFLAGS := -std=c++11 -g -O3 -I${DIR_INC} $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) ${CXXFLAGS} 
+CXXFLAGS := -std=c++11 -g -O3 -flto -funroll-loops -mavx512vl -mavx512bitalg -mavx512f -mavx512bw -mavx512vbmi2 -I${DIR_INC} $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) ${CXXFLAGS}
 LIBS := -lz -lpthread
 LD_FLAGS := $(foreach librarydir,$(LIBRARY_DIRS),-L$(librarydir)) $(LIBS) $(LD_FLAGS)
 
 
 ${BIN_TARGET}:${OBJ}
-	$(CXX) $(OBJ) -o $@ $(LD_FLAGS)
+	$(CXX) -flto -g $(OBJ) -o $@ $(LD_FLAGS)
 
 ${DIR_OBJ}/%.o:${DIR_SRC}/%.cpp make_obj_dir
 	$(CXX) -c $< -o $@ $(CXXFLAGS)
@@ -34,6 +34,7 @@ clean:
 	@if test -d $(DIR_OBJ) ; \
 	then \
 		find $(DIR_OBJ) -name *.o -delete; \
+		find $(DIR_IO) -name *.o -delete; \
 	fi
 	@if test -e $(TARGET) ; \
 	then \
