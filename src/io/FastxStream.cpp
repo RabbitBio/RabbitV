@@ -15,16 +15,20 @@
 #include "Reference.h"
 #include "FastxStream.h"
 
-namespace mash {
+namespace rabbit {
 
 namespace fa {
 
+/**
+	@brief Read the next chunk
+	@return FastaChunk pointer if next chunk data has data, else return NULL
+ */
 FastaChunk *FastaFileReader::readNextChunk() {
   FastaDataChunk *part = NULL;
   recordsPool.Acquire(part);
   FastaChunk *dataPart = new FastaChunk;
   dataPart->chunk = part;
-  if (ReadNextChunk(dataPart, this->seqInfos)) {
+  if (ReadNextChunk_(dataPart, this->seqInfos)) {
     return dataPart;
   } else {
     std::cout << "read over!" << std::endl;
@@ -33,26 +37,27 @@ FastaChunk *FastaFileReader::readNextChunk() {
   }
 }
 
-/*
-Description:
-  this function make sure one FastaChunk(dataPart) contains at least
-  one whole sequence, because
+/**
+ * @brief Read next listed chunk
+ * @details this function make sure one FastaChunk(dataPart) contains at least
+ * one whole sequence
+ * @return FastaChunk pointer if next chunk data has data, else return NULL
 */
 FastaChunk *FastaFileReader::readNextChunkList() {
   FastaDataChunk *part = NULL;
   recordsPool.Acquire(part);
   FastaChunk *dataPart = new FastaChunk;
   dataPart->chunk = part;
-  FastaDataChunk *currnet = NULL;
+  FastaDataChunk *current = part;
   bool continue_read = false;
-  if (ReadNextFaChunk(dataPart->chunk, this->seqInfos, continue_read)) {
-    FastaDataChunk *current = part;
+  if (ReadNextFaChunk_(dataPart->chunk, this->seqInfos, continue_read)) {
+    //FastaDataChunk *current = part;
     while (continue_read) {
       FastaDataChunk *append = NULL;
       recordsPool.Acquire(append);
-      if (ReadNextFaChunk(append, this->seqInfos, continue_read)) {
+      if (ReadNextFaChunk_(append, this->seqInfos, continue_read)) {
         current->next = append;
-        currnet = append;
+        current = append;
       } else {
         recordsPool.Release(append);
         break;
@@ -65,7 +70,7 @@ FastaChunk *FastaFileReader::readNextChunkList() {
   }
 }
 
-bool FastaFileReader::ReadNextChunk(FastaChunk *dataChunk_, SeqInfos &seqInfos) {
+bool FastaFileReader::ReadNextChunk_(FastaChunk *dataChunk_, SeqInfos &seqInfos) {
   FastaDataChunk *chunk_ = dataChunk_->chunk;
   if (Eof()) {
     chunk_->size = 0;
@@ -93,7 +98,7 @@ bool FastaFileReader::ReadNextChunk(FastaChunk *dataChunk_, SeqInfos &seqInfos) 
     if (r == toRead)  // somewhere before end
     {
       // dealing with halo region
-      uint64 chunkEnd = FindCutPos(dataChunk_, data, cbufSize, mHalo, seqInfos);
+      uint64 chunkEnd = FindCutPos_(dataChunk_, data, cbufSize, mHalo, seqInfos);
       chunk_->size = chunkEnd;  // - 1; //1 char back from last '>'
 
       if (usesCrlf) chunk_->size -= 1;
@@ -123,7 +128,7 @@ bool FastaFileReader::ReadNextChunk(FastaChunk *dataChunk_, SeqInfos &seqInfos) 
       if (usesCrlf) chunk_->size -= 1;
 
       // only for get seqsinfo
-      uint64 chunkEnd = FindCutPos(dataChunk_, data, chunk_->size, mHalo, seqInfos);
+      uint64 chunkEnd = FindCutPos_(dataChunk_, data, chunk_->size, mHalo, seqInfos);
       // debug only
       // std::string content((char*)data, chunk_->size);
       // std::cout << "tail content ori: " << data << std::endl;
@@ -139,7 +144,7 @@ bool FastaFileReader::ReadNextChunk(FastaChunk *dataChunk_, SeqInfos &seqInfos) 
   return true;
 }
 
-uint64 FastaFileReader::FindCutPos(FastaChunk *dataChunk_, uchar *data_, const uint64 size_, const uint64 halo_,
+uint64 FastaFileReader::FindCutPos_(FastaChunk *dataChunk_, uchar *data_, const uint64 size_, const uint64 halo_,
                                    SeqInfos &seqInfos) {
   int count = 0;
   uint64 pos_ = 0;
@@ -147,10 +152,8 @@ uint64 FastaFileReader::FindCutPos(FastaChunk *dataChunk_, uchar *data_, const u
   uint64 lastSeq_ = 0;   //-> the start of last sequences content
   uint64 lastName_ = 0;  //-> the last '>'
   OneSeqInfo seqInfo;
-  /*
-  [haoz:] dataChunk_ -> start和dataChunk_ -> end 是表示当前这个chunk的开始部分的序列的index和
-      最终部分序列的index
-  */
+
+  //dataChunk_ -> start and dataChunk_ -> end means start index and end index of current chunk
   if (data_[0] == '>')  // start with '>'
   {
     dataChunk_->start = this->totalSeqs;
@@ -216,6 +219,7 @@ uint64 FastaFileReader::FindCutPos(FastaChunk *dataChunk_, uchar *data_, const u
 
   return cut_ ? cut_ : size_;
 }
+
 bool find_next_seq_start(uchar *data, uint64 size, uint64 &pos_) {
   if (pos_ == size - 1) return false;
   do {
@@ -225,8 +229,7 @@ bool find_next_seq_start(uchar *data, uint64 size, uint64 &pos_) {
   return data[pos_] == '>' ? true : false;
 }
 
-// bool FastaFileReader::ReadNextFaChunk(FastaChunk* dataChunk_, SeqInfos& seqInfos, bool &continue_read){
-bool FastaFileReader::ReadNextFaChunk(FastaDataChunk *chunk_, SeqInfos &seqInfos, bool &continue_read) {
+bool FastaFileReader::ReadNextFaChunk_(FastaDataChunk *chunk_, SeqInfos &seqInfos, bool &continue_read) {
   if (Eof()) {
     chunk_->size = 0;
     return false;
@@ -317,12 +320,10 @@ void FastqFileReader::readChunk() {
   printf("fastqio: ready to into while\n");
 
   // while (!errorHandler.IsError() && fileReader.ReadNextChunk(part))
-  while (ReadNextChunk(part)) {
+  while (ReadNextChunk_(part)) {
     ASSERT(part->size > 0);
 
-    // recordsQueue.Push(numParts, part); //[haoz:] Push:把<numparts,
-    // part>组成pair然后放到recordsQueue里面然后notifiy_one
-    printf("numParts is %d\n", numParts);
+    //printf("numParts is %d\n", numParts);
     numParts++;
 
     recordsPool.Release(part);
@@ -335,10 +336,14 @@ void FastqFileReader::readChunk() {
   // recordsQueue.SetCompleted();
 }
 
+/**
+	@brief Read the next chunk
+	@return FastqChunk pointer if next chunk data has data, else return NULL
+ */
 FastqDataChunk *FastqFileReader::readNextChunk() {
   FastqDataChunk *part = NULL;
   recordsPool.Acquire(part);
-  if (ReadNextChunk(part)) {
+  if (ReadNextChunk_(part)) {
     return part;
   } else {
     recordsPool.Release(part);
@@ -346,6 +351,10 @@ FastqDataChunk *FastqFileReader::readNextChunk() {
   }
 }
 
+/**
+	@brief Read the next paired chunk
+	@return FastqDataPairChunk pointer if next chunk data has data, else return NULL
+ */
 FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
   FastqDataPairChunk *pair = new FastqDataPairChunk;
 
@@ -386,8 +395,8 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
   if (r > 0) {
     if (r == toRead) {
       chunkEnd =
-        cbufSize -  SwapBufferSize; // (1 << 13);  // SwapBufferSize; // SwapBuffersize defined in FastqStream.h as constant value : 1<<13;
-      chunkEnd = GetNextRecordPos(data, chunkEnd, cbufSize);
+        cbufSize - SwapBufferSize;  // SwapBufferSize; // SwapBuffersize defined in FastqStream.h as constant value : 1<<20;
+      chunkEnd = GetNextRecordPos_(data, chunkEnd, cbufSize);
     } else {
       // chunkEnd = r;
       leftPart->size += r - 1;
@@ -414,9 +423,8 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
   if (r > 0) {
     if (r == toRead) {
       chunkEnd_right =
-        cbufSize_right -  SwapBufferSize;
-       // (1 << 13);  // SwapBufferSize; // SwapBuffersize defined in FastqStream.h as constant value : 1<<13;
-      chunkEnd_right = GetNextRecordPos(data_right, chunkEnd_right, cbufSize_right);
+        cbufSize_right - SwapBufferSize; // SwapBuffersize defined in FastqStream.h as constant value : 1<<20;
+      chunkEnd_right = GetNextRecordPos_(data_right, chunkEnd_right, cbufSize_right);
     } else {
       // chunkEnd_right += r;
       rightPart->size += r - 1;
@@ -435,9 +443,8 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
     int64 difference = left_line_count - right_line_count;
     if (difference > 0) {
       // move rightPart difference lines before
-      // std::cout << "difference > 0 "<<left_line_count <<" " <<right_line_count << " " << difference <<std::endl;
-   //   std::cout << "start: " << chunkEnd_right << std::endl;
-      // while(true){
+      // std::cout << "difference > 0 "<< left_line_count <<" " << right_line_count << " " << difference <<std::endl;
+      //std::cout << "start: " << chunkEnd_right << std::endl;
       while (chunkEnd_right < cbufSize) {
         if (data_right[chunkEnd_right] == '\n') {
           difference--;
@@ -448,12 +455,10 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
         }
         chunkEnd_right++;
       }
-  //    std::cout << "end: " << chunkEnd_right << std::endl;
 
     } else if (difference < 0) {
       // move leftPart difference lines before
-      // std::cout << "difference < 0 "  <<left_line_count <<" " <<right_line_count << " " << difference << std::endl;
-      // while(true){
+      //std::cout << "difference < 0 "  <<left_line_count <<" " <<right_line_count << " " << difference << std::endl;
       while (chunkEnd < cbufSize) {
         if (data[chunkEnd] == '\n') {
           difference++;
@@ -465,6 +470,11 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
         chunkEnd++;
       }
     }
+
+		if (difference != 0){
+			std::cerr << "difference still != 0, paired chunk too difference" << std::endl;
+			exit(0);
+		}
 
     leftPart->size = chunkEnd - 1;
     if (usesCrlf) leftPart->size -= 1;
@@ -482,63 +492,7 @@ FastqDataPairChunk *FastqFileReader::readNextPairChunk() {
   return pair;
 }
 
-FastqDataChunk* FastqFileReader::readNextPairChunkInterleaved(){
-  FastqDataChunk *part = NULL;
-  recordsPool.Acquire(part);
-  uint64 lastChunkPos1;
-  uint64 lastChunkPos2;
-  //---------read chunk------------
-  if (eof) {
-    part->size = 0;
-    // return false;
-    recordsPool.Release(part);
-    return NULL;
-  }
-
-  // flush the data from previous incomplete chunk
-  uchar *data = part->data.Pointer();
-  const uint64 cbufSize = part->data.Size();
-  part->size = 0;
-  int64 toRead;
-  toRead = cbufSize - bufferSize;
-  if (bufferSize > 0) {
-    std::copy(swapBuffer.Pointer(), swapBuffer.Pointer() + bufferSize, data);
-    part->size = bufferSize;
-    bufferSize = 0;
-  }
-  int64 r;
-  r = Read(data + part->size, toRead);
-  if (r > 0) {
-    if (r == toRead) {
-      lastChunkPos1 = GetPreviousRecordPos(data, cbufSize - 1, cbufSize);
-      lastChunkPos2 = GetPreviousRecordPos(data, lastChunkPos1 - 1, cbufSize);
-      
-    } else {
-      // chunkEnd = r;
-      part->size += r - 1;
-      if (usesCrlf) part->size -= 1;
-      eof = true;
-    }
-  } else {
-    eof = true;
-    return NULL;
-  }
-  //------read chunk end------//
-    
-  if (!eof) {
-    
-    part->size = lastChunkPos1 - 1;
-    if (usesCrlf) part->size -= 1;
-
-    std::copy(data + lastChunkPos2, data + cbufSize, swapBuffer.Pointer());
-    bufferSize = cbufSize - lastChunkPos2;
-  }
-  return part;
-
-}
-
-// bool IFastqStreamReader::ReadNextChunk(FastqDataChunk* chunk_)
-bool FastqFileReader::ReadNextChunk(FastqDataChunk *chunk_) {
+bool FastqFileReader::ReadNextChunk_(FastqDataChunk *chunk_) {
   if (Eof()) {
     chunk_->size = 0;
     return false;
@@ -566,7 +520,7 @@ bool FastqFileReader::ReadNextChunk(FastqDataChunk *chunk_) {
       uint64 chunkEnd = cbufSize - SwapBufferSize;  // Swapbuffersize: 1 << 13
       // std::cout << "chunkend  cbufsize Swapbuffersize: " << chunkEnd <<" "<< cbufSize << " " << SwapBufferSize <<
       // std::endl;
-      chunkEnd = GetNextRecordPos(data, chunkEnd, cbufSize);
+      chunkEnd = GetNextRecordPos_(data, chunkEnd, cbufSize);
       chunk_->size = chunkEnd - 1;
       if (usesCrlf) chunk_->size -= 1;
 
@@ -586,7 +540,7 @@ bool FastqFileReader::ReadNextChunk(FastqDataChunk *chunk_) {
   return true;
 }
 
-uint64 FastqFileReader::GetPreviousRecordPos(uchar *data_, uint64 pos_, const uint64 size_) {
+uint64 FastqFileReader::GetPreviousRecordPos_(uchar *data_, uint64 pos_, const uint64 size_) {
   int offset = 2;
 
   SkipToSol(data_, pos_, size_);
@@ -597,14 +551,14 @@ uint64 FastqFileReader::GetPreviousRecordPos(uchar *data_, uint64 pos_, const ui
     // std::cout<<"pos_"<<pos_<<std::endl;
     SkipToSol(data_, pos_, size_);
   }
-  //标记一下，看是否是质量分
+  //mark to check if the '@' is quality score
   uint64 pos0 = pos_ + offset;
   SkipToSol(data_, pos_, size_);
   if (data_[pos_ + offset] == '+') {
-    //说明上一个@号是质量分
+	// indicate that the '@' is quality score
+	SkipToSol(data_, pos_, size_);
     SkipToSol(data_, pos_, size_);
-    SkipToSol(data_, pos_, size_);
-    //此时应该是name
+    //it is name
     if (data_[pos_ + offset] != '@') {
       std::cout << "core dump is " << data_[pos_ + offset] << std::endl;
       return pos_ + offset;
@@ -615,8 +569,8 @@ uint64 FastqFileReader::GetPreviousRecordPos(uchar *data_, uint64 pos_, const ui
     return pos0;
   }
 }
-
-uint64 FastqFileReader::GetNextRecordPos(uchar *data_, uint64 pos_, const uint64 size_) {
+	
+uint64 FastqFileReader::GetNextRecordPos_(uchar *data_, uint64 pos_, const uint64 size_) {
   SkipToEol(data_, pos_, size_);
   ++pos_;
 
@@ -642,4 +596,4 @@ uint64 FastqFileReader::GetNextRecordPos(uchar *data_, uint64 pos_, const uint64
 
 }  // namespace fq
 
-}  // namespace mash
+}  // namespace rabbit

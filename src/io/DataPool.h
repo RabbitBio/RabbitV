@@ -27,10 +27,14 @@ namespace th = boost;
 namespace th = std;
 #endif
 
-namespace mash {
+namespace rabbit {
 
 namespace core {
 
+/**
+ * @brief DataPool class 
+ * This class provide an data pool for reusing memory space
+ */	
 template <class _TDataType>
 class TDataPool {
   typedef _TDataType DataType;
@@ -50,6 +54,11 @@ class TDataPool {
   static const uint32 DefaultMaxPartNum = 32;
   static const uint32 DefaultBufferPartSize = 1 << 22;
 
+	/**
+	 * @brief Constructor
+	 * @param maxPartNum_ the maximum number of part contained in DataPool.
+	 * @param bufferPartsize_ Bytes of each part in DataPool (eg. 1<<22 means 4MB each part)
+	 */
   TDataPool(uint32 maxPartNum_ = DefaultMaxPartNum, uint32 bufferPartSize_ = DefaultBufferPartSize)
       : maxPartNum(maxPartNum_), bufferPartSize(bufferPartSize_), partNum(0) {
     availablePartsPool.resize(maxPartNum);
@@ -62,7 +71,12 @@ class TDataPool {
       delete *i;
     }
   }
-
+	/**
+	 * @brief Acquire an DataType data in DataPool and assign to part_	 
+	 * @details Acquired data from availablePartsPool, if there is no available data in availablePartsPool, program will 
+	 *       wait.
+	 * @param part_ the pointer to acquireed space 
+	 */
   void Acquire(DataType *&part_) {
     th::unique_lock<th::mutex> lock(mutex);
 
@@ -82,7 +96,11 @@ class TDataPool {
     partNum++;
     part_ = pp;
   }
-
+	/**
+	 * @brief Realease data to DataPool
+	 * @details Realease the data in part_ to AvailablePartsPool and notify
+	 * @param part_ the pointer to be realesed to DataPool 
+	 */
   void Release(const DataType *part_) {
     th::lock_guard<th::mutex> lock(mutex);
 
@@ -98,6 +116,6 @@ class TDataPool {
 
 }  // namespace core
 
-}  // namespace mash
+}  // namespace rabbit
 
 #endif  // H_DATA_POOL

@@ -98,19 +98,6 @@ double Kmer::getMeanHit() {
     return total / (double) mKmerHits.size();
 }
 
-double Kmer::getCoverage() {
-    if(mKmerHits.size() == 0)
-        return 0.0;
-
-    double total = 0;
-    unordered_map<uint64, uint32>::iterator iter;
-    for(iter = mKmerHits.begin(); iter != mKmerHits.end(); iter++) {
-        total += iter->second >= 1 ? 1 : 0;
-    }
-    cout << "informaticn of getCoverage: " << total << " / " << (double)mKmerHits.size();
-    return total / (double) mKmerHits.size();
-}
-
 bool Kmer::add(uint64 kmer64) {
     unordered_map<uint64, uint32>::iterator iter = mKmerHits.find(kmer64);
     if(iter != mKmerHits.end()) {
@@ -177,6 +164,35 @@ void Kmer::reportJSON(ofstream& ofs) {
         ofs << ":" << iter->second;
     }
     ofs << endl;
+}
+
+bool Kmer::seq2uint64(string &seq, uint32& pos, uint32 len, uint64& key, uint64 keymask)
+{
+    int count = 0;
+    const int mask = 0x06;
+    int seqlen = seq.length();
+    while(count < len && pos < seqlen)
+    {
+        if(seq[pos] != 'N')
+        {
+            key <<= 2;
+            uint8_t meri = (uint8_t)seq[pos];
+            meri &= mask;
+            meri >>= 1;
+            key |= (uint64_t)meri;
+            count++;
+        }
+        else
+        {
+            count = 0;
+        }
+
+        ++pos;
+    }
+
+    key &= keymask;
+
+    return count != len;
 }
 
 uint64 Kmer::seq2uint64(string& seq, uint32 pos, uint32 len, bool& valid) {

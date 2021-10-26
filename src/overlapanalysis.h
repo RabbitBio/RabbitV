@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include <cstdint>
 #include <vector>
 #include "common.h"
 #include "options.h"

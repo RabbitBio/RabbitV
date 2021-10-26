@@ -79,6 +79,8 @@ private:
     long mHitCount;
     long mMissedCount;
     char* mBloomFilterArray;
+
+    char* mBloomFilterArrayCache;
 };
 
 

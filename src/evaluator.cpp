@@ -323,7 +323,7 @@ string Evaluator::evalAdapterAndReadNum(long& readNum, bool isR2) {
     size_t bytesTotal;
 
     Read** loadedReads = new Read*[READ_LIMIT];
-    memset(loadedReads, 0, sizeof(Read*)*READ_LIMIT);
+    //memset(loadedReads, 0, sizeof(Read*)*READ_LIMIT);
     bool reachedEOF = false;
     bool first = true;
 
@@ -435,7 +435,11 @@ string Evaluator::evalAdapterAndReadNum(long& readNum, bool isR2) {
     }
 
     const int FOLD_THRESHOLD = 20;
-    for(int t=0; t<topnum; t++) {
+
+    vector<int> seeds;
+
+    for(int t=0; t<topnum; t++) 
+    {
         int key = topkeys[t];
         string seq = int2seq(key, keylen);
         if(key == 0)
@@ -445,15 +449,20 @@ string Evaluator::evalAdapterAndReadNum(long& readNum, bool isR2) {
             break;
         // skip low complexity seq
         int diff = 0;
-        for(int s=0; s<seq.length() - 1; s++) {
+        for(int s=0; s<seq.length() - 1; s++) 
+        {
             if(seq[s] != seq[s+1])
                 diff++;
         }
-        if(diff <3){
+        if(diff <3)
             continue;
-        }
+
+        seeds.push_back(key);
+
+        /*
         string adapter = getAdapterWithSeed(key, loadedReads, records, keylen);
-        if(!adapter.empty()){
+        if(!adapter.empty())
+        {
             delete[] counts;
             for(int r=0; r<records; r++) {
                 delete loadedReads[r];
@@ -462,7 +471,10 @@ string Evaluator::evalAdapterAndReadNum(long& readNum, bool isR2) {
             delete[] loadedReads;
             return adapter;
         }
+        */
     }
+
+    string adapter  = getAdapterWithSeed(seeds, loadedReads, records, keylen);
 
     delete[] counts;
     for(int r=0; r<records; r++) {
@@ -470,26 +482,71 @@ string Evaluator::evalAdapterAndReadNum(long& readNum, bool isR2) {
         loadedReads[r] = NULL;
     }
     delete[] loadedReads;
-    return "";
+
+    return adapter;
 
 }
 
-string Evaluator::getAdapterWithSeed(int seed, Read** loadedReads, long records, int keylen) {
+string Evaluator::getAdapterWithSeed(vector<int> &seeds, Read** loadedReads, long records, int keylen) 
+{
     // we have to shift last cycle for evaluation since it is so noisy, especially for Illumina data
     const int shiftTail = max(1, mOptions->trim.tail1);
-    NucleotideTree forwardTree(mOptions);
+
+    int seedslen = seeds.size();
+
+    NucleotideTree* forwardTree = new NucleotideTree[seedslen];
+    NucleotideTree* backwardTree = new NucleotideTree[seedslen];
+
     // forward search
-    for(int i=0; i<records; i++) {
+    for(int i=0; i<records; i++) 
+    {
         Read* r = loadedReads[i];
         const char* data = r->mSeq.mStr.c_str();
         int key = -1;
-        for(int pos = 20; pos <= r->length()-keylen-shiftTail; pos++) {
+        for(int pos = 20; pos <= r->length()-keylen-shiftTail; pos++) 
+        {
             key = seq2int(r->mSeq.mStr, pos, keylen, key);
-            if(key == seed) {
-                forwardTree.addSeq(r->mSeq.mStr.substr(pos+keylen, r->length()-keylen-shiftTail-pos));
+
+            for(int j = 0; j < seedslen; ++j)
+            {
+                if(key == seeds[j])
+                {
+                    forwardTree[j].addSeq(r->mSeq.mStr.substr(pos+keylen, r->length()-keylen-shiftTail-pos));
+                    backwardTree[j].addSeq(reverse(r->mSeq.mStr.substr(0, pos)));
+                }
             }
         }
     }
+
+    vector<string> result;
+
+    for(int i = 0; i < seedslen; i++)
+    {
+        bool reachedLeaf = true;
+        string forwardPath = forwardTree[i].getDominantPath(reachedLeaf);
+        string backwardPath = backwardTree[i].getDominantPath(reachedLeaf);
+
+        string adapter = reverse(backwardPath) + int2seq(seeds[i], keylen) + forwardPath;
+
+        if(adapter.size() > 60)
+            adapter.resize(60);
+
+        string matchedAdapter = matchKnownAdapter(adapter);
+
+        if(!matchedAdapter.empty() || reachedLeaf)
+        {
+            delete [] forwardTree;
+            delete [] backwardTree;
+            return matchedAdapter;
+        }
+    }
+
+    delete [] forwardTree;
+    delete [] backwardTree;
+
+    return "";
+
+    /*
     bool reachedLeaf = true;
     string forwardPath = forwardTree.getDominantPath(reachedLeaf);
 
@@ -527,6 +584,7 @@ string Evaluator::getAdapterWithSeed(int seed, Read** loadedReads, long records,
             return "";
         }
     }
+    */
 }
 
 string Evaluator::matchKnownAdapter(string seq) {

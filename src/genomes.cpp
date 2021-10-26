@@ -7,6 +7,7 @@
 
 // we use 512M memory
 const int BLOOM_FILTER_LENGTH = (1<<29);
+const int BLOOM_FILTER_CACHE_LENGTH = (1 << 16);
 
 Genomes::Genomes(string faFile, Options* opt)
 {
@@ -25,9 +26,16 @@ Genomes::~Genomes()
         delete mFastaReader;
         mFastaReader = NULL;
     }
+
     if(mBloomFilterArray) {
         delete mBloomFilterArray;
         mBloomFilterArray = NULL;
+    }
+
+    if(mBloomFilterArrayCache)
+    {
+        delete mBloomFilterArrayCache;
+        mBloomFilterArrayCache = NULL;
     }
 
     //cerr << "mMissedCount: " << mMissedCount << endl;
@@ -100,16 +108,34 @@ void Genomes::initBloomFilter() {
     mBloomFilterArray = new char[BLOOM_FILTER_LENGTH];
     memset(mBloomFilterArray, 0, BLOOM_FILTER_LENGTH * sizeof(char));
 
+    mBloomFilterArrayCache = new char[BLOOM_FILTER_CACHE_LENGTH];
+    memset(mBloomFilterArrayCache, 0, BLOOM_FILTER_CACHE_LENGTH * sizeof(char));
+
     //update bloom filter array
-    const unsigned long long int bloomFilterFactors[3] = {1713137323, 371371377, 7341234131};
+    //const unsigned long long int bloomFilterFactors[3] = {1713137323, 371371377, 7341234131};
 
     unordered_map<uint64, list<uint32>>::iterator iter;
-    for(iter = mKmerTable.begin(); iter != mKmerTable.end(); iter++) {
+
+    for(iter = mKmerTable.begin(); iter != mKmerTable.end(); iter++) 
+    {
         uint64 key = iter->first;
-        for(int b=0; b<3; b++) {
-            mBloomFilterArray[(bloomFilterFactors[b] * key) & (BLOOM_FILTER_LENGTH-1) ] = 1;
-        }
+
+        mBloomFilterArray[key & (BLOOM_FILTER_LENGTH-1) ] = 1;
+        mBloomFilterArray[(1713137323 * key) & (BLOOM_FILTER_LENGTH-1) ] = 1;
+        mBloomFilterArray[(371371377 * key) & (BLOOM_FILTER_LENGTH-1) ] = 1;
+
+        mBloomFilterArrayCache[key & (BLOOM_FILTER_CACHE_LENGTH - 1)] = 1;
+        mBloomFilterArrayCache[(1713137323 * key) & (BLOOM_FILTER_CACHE_LENGTH -1) ] = 1;
+        mBloomFilterArrayCache[(371371377 * key) & (BLOOM_FILTER_CACHE_LENGTH -1) ] = 1;
     }
+    
+    //for(iter = mKmerTable.begin(); iter != mKmerTable.end(); iter++) {
+    //    uint64 key = iter->first;
+    //    for(int b=0; b<3; b++) {
+    //        mBloomFilterArray[(bloomFilterFactors[b] * key) & (BLOOM_FILTER_LENGTH-1) ] = 1;
+    //        mBloomFilterArrayCache[(bloomFilterFactors[b] * key) & (BLOOM_FILTER_CACHE_LENGTH - 1)] = 1;
+    //    }
+    //}
 }
 
 void Genomes::initLowComplexityKeys() {
@@ -213,10 +239,32 @@ void Genomes::addKmer(uint64 key, uint32 id, uint32 pos) {
 bool Genomes::hasKey(uint64 key) {
     // check bloom filter
     const unsigned long long int bloomFilterFactors[3] = {1713137323, 371371377, 7341234131};
+
+    if(mBloomFilterArrayCache[key & (BLOOM_FILTER_CACHE_LENGTH - 1)] == 0)
+        return false;
+    if(mBloomFilterArrayCache[(1713137323 * key) & (BLOOM_FILTER_CACHE_LENGTH -1) ] == 0)
+        return false;
+        
+    if(mBloomFilterArrayCache[(371371377 * key) & (BLOOM_FILTER_CACHE_LENGTH -1) ] == 0)
+        return false;
+
+    if(mBloomFilterArray[key & (BLOOM_FILTER_LENGTH-1) ] == 0)
+        return false;
+    if(mBloomFilterArray[(1713137323 * key) & (BLOOM_FILTER_LENGTH-1) ] == 0)
+        return false;
+    if(mBloomFilterArray[(371371377 * key) & (BLOOM_FILTER_LENGTH-1) ] == 0)
+        return false;
+
+
+    /*
     for(int b=0; b<3; b++) {
+        if(mBloomFilterArrayCache[(bloomFilterFactors[b] * key) & (BLOOM_FILTER_CACHE_LENGTH-1)] == 0 )
+            return false;
+        
         if(mBloomFilterArray[(bloomFilterFactors[b] * key) & (BLOOM_FILTER_LENGTH-1)] == 0 )
             return false;
     }
+    */
 
     bool hit = mKmerTable.find(key) != mKmerTable.end();
     if(hit)

@@ -1,4 +1,5 @@
 #include "overlapanalysis.h"
+#include <immintrin.h>
 
 OverlapAnalysis::OverlapAnalysis(){
 }
@@ -26,33 +27,87 @@ OverlapResult OverlapAnalysis::analyze(Sequence& r1, Sequence& r2, int diffLimit
     int offset = 0;
     int diff = 0;
 
-    // forward
+    //chang
+    if(overlapRequire >= len1)
+        goto here;
+
+    if(len1 >= 50 && len2 >= 50)
+    {
+        int maxoffset = min(len1 - 50, len1 - overlapRequire - 1);
+
+        __mmask64 mask = (1ul << 50) - 1;
+
+        __m512i vstr2 = _mm512_maskz_loadu_epi8(mask, str2);
+
+        while(offset <= maxoffset)
+        {
+            overlap_len = min(len1 - offset, len2);
+            int overlapDiffLimit = min(diffLimit, (int)(overlap_len * diffPercentLimit));
+            diff = 0;
+
+            __m512i vstr1 = _mm512_maskz_loadu_epi8(mask, str1 + offset);
+            __mmask64 r = _mm512_cmpneq_epi8_mask(vstr1, vstr2);
+
+            uint64_t tmp = _mm_popcnt_u64(r);
+
+            /*
+            while(r)
+            {
+                ++diff;
+                r &= r - 1;
+            }
+            */
+
+            //if(diff <= overlapDiffLimit)
+            if(tmp <= overlapDiffLimit)
+            {
+                OverlapResult ov;
+                ov.overlapped = true;
+                ov.offset = offset;
+                ov.overlap_len = overlap_len;
+                ov.diff = tmp;
+                return ov;
+            }
+
+            ++offset;
+        }
+    }
+
     // a match of less than overlapRequire is considered as unconfident
-    while (offset < len1-overlapRequire) {
+    while (offset < len1-overlapRequire) 
+    {
         // the overlap length of r1 & r2 when r2 is move right for offset
         overlap_len = min(len1 - offset, len2);
         int overlapDiffLimit = min(diffLimit, (int)(overlap_len * diffPercentLimit));
 
-        diff = 0;
-        int i = 0;
-        for (i=0; i<overlap_len; i++) {
-            if (str1[offset + i] != str2[i]){
-                diff += 1;
-                if (diff > overlapDiffLimit && i < complete_compare_require)
-                    break;
-            }
+        __mmask64 mask = (1ul << overlap_len) - 1;
+
+        __m512i vstr1 = _mm512_maskz_loadu_epi8(mask, str1 + offset);
+        __m512i vstr2 = _mm512_maskz_loadu_epi8(mask, str2);
+
+        __mmask64 r = _mm512_cmpneq_epi8_mask(vstr1, vstr2);
+
+        uint64_t tmp = _mm_popcnt_u64(r);
+
+        /*
+        while(r)
+        {
+            ++diff;
+            r &= r - 1;
         }
-        
-        if (diff <= overlapDiffLimit || (diff > overlapDiffLimit && i>complete_compare_require)){
+        */
+
+        if(tmp <= overlapDiffLimit)
+        {
             OverlapResult ov;
             ov.overlapped = true;
             ov.offset = offset;
             ov.overlap_len = overlap_len;
-            ov.diff = diff;
+            ov.diff = tmp;
             return ov;
         }
 
-        offset += 1;
+        ++offset;
     }
 
 
@@ -61,7 +116,83 @@ OverlapResult OverlapAnalysis::analyze(Sequence& r1, Sequence& r2, int diffLimit
     // check if distance can get smaller if offset goes negative
     // this only happens when insert DNA is shorter than sequencing read length, and some adapter/primer is sequenced but not trimmed cleanly
     // we go reversely
+here:
+
     offset = 0;
+
+    if(overlapRequire >= len2)
+    {
+        OverlapResult ov;
+        ov.overlapped = false;
+        ov.offset = ov.overlap_len = ov.diff = 0;
+        return ov;
+    }
+
+    if(len1 >= 50 && len2 >= 50)
+    {
+
+        int maxoffset = min(len2 - 50, len2 - overlapRequire - 1);
+
+        __mmask64 mask = (1ul << 50) - 1;
+
+        __m512i vstr1 = _mm512_maskz_loadu_epi8(mask, str1);
+
+        while(offset <= maxoffset)
+        {
+            overlap_len = min(len2 - offset, len1);
+            int overlapDiffLimit = min(diffLimit, (int)(overlap_len * diffPercentLimit));
+
+            __m512i vstr2 = _mm512_maskz_loadu_epi8(mask, str2 + offset);
+            __mmask64 r = _mm512_cmpneq_epi8_mask(vstr1, vstr2);
+
+            uint64_t tmp = _mm_popcnt_u64(r);
+
+            if(tmp <= overlapDiffLimit)
+            {
+                OverlapResult ov;
+                ov.overlapped = true;
+                ov.offset = -offset;
+                ov.overlap_len = overlap_len;
+                ov.diff = tmp;
+                return ov;
+            }
+
+            ++offset;
+        }
+
+    }
+
+    while(offset < len2 - overlapRequire)
+    {
+
+        overlap_len = min(len2 - offset, len1);
+        int overlapDiffLimit = min(diffLimit, (int)(overlap_len * diffPercentLimit));
+
+        __mmask64 mask = (1ul << overlap_len) - 1;
+
+        __m512i vstr2 = _mm512_maskz_loadu_epi8(mask, str2 + offset);
+        __m512i vstr1 = _mm512_maskz_loadu_epi8(mask, str1);
+
+        __mmask64 r = _mm512_cmpneq_epi8_mask(vstr1, vstr2);
+
+        uint64_t tmp = _mm_popcnt_u64(r);
+
+        if(tmp <= overlapDiffLimit)
+        {
+            OverlapResult ov;
+            ov.overlapped = true;
+            ov.offset = -offset;
+            ov.overlap_len = overlap_len;
+            ov.diff = tmp;
+            return ov;
+        }
+
+        ++offset;
+
+    }
+
+
+    /*
     while (offset > -(len2-overlapRequire)){
         // the overlap length of r1 & r2 when r2 is move right for offset
         overlap_len = min(len1,  len2- abs(offset));
@@ -88,6 +219,7 @@ OverlapResult OverlapAnalysis::analyze(Sequence& r1, Sequence& r2, int diffLimit
 
         offset -= 1;
     }
+    */
 
     OverlapResult ov;
     ov.overlapped = false;

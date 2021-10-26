@@ -1,12 +1,3 @@
-/*
-  This file is a part of DSRC software distributed under GNU GPL 2 licence.
-  The homepage of the DSRC project is http://sun.aei.polsl.pl/dsrc
-
-  Authors: Lucas Roguski and Sebastian Deorowicz
-
-  Version: 2.00
-*/
-
 #include <cstdio>
 #include <vector>
 #include <map>
@@ -16,16 +7,20 @@
 #include "Formater.h"
 #include "Buffer.h"
 #include "FastxStream.h"
-//#include "read.h"
-//#include "Sequence.h"
 
 using namespace std;
 
-namespace mash {
+namespace rabbit {
 
 namespace fa {
 
 // FIXME:support enter = \n only
+/**
+ * @brief Get Sequence from chunk start at position
+ * @param chunk The data to get sequence from
+ * @param pos start postion at `chunk` data
+ * @return New sequence string if pos < chunk size, else return an empty string ("")
+ */
 string getSequence(FastaDataChunk *&chunk, uint64 &pos) {
   int start_pos = pos;
   char *data = (char *)chunk->data.Pointer();
@@ -59,6 +54,12 @@ string getSequence(FastaDataChunk *&chunk, uint64 &pos) {
 }
 
 // only support uinx-like '\n'
+/**
+ * @brief Get a new line from chunk start at position
+ * @param chunk The data to get line from
+ * @param pos start postion at `chunk` data
+ * @return New line string if pos < chunk size, else return an empty string ("")
+ */
 string getLine(FastaDataChunk *&chunk, uint64 &pos) {
   int start_pos = pos;
   char *data = (char *)chunk->data.Pointer();
@@ -75,6 +76,12 @@ string getLine(FastaDataChunk *&chunk, uint64 &pos) {
   return "";
 }
 
+/**
+ * @brief Format FASTA chunks into a vector os `Refenece` struct
+ * @param fachunk Source FASTA chunk data to format
+ * @param refs Destation vector to store at
+ * @return Total number of Reference instance in vector refs.
+ */
 int chunkFormat(FastaChunk &fachunk, vector<Reference> &refs) {
   uint64 pos = 0;
   bool done = false;
@@ -91,6 +98,13 @@ int chunkFormat(FastaChunk &fachunk, vector<Reference> &refs) {
 }
 
 // design to filter out kmer apps
+/**
+ * @brief Format FASTA chunks into a vector of `Refenece` struct (filter out sequence length < kmerSize)
+ * @param fachunk Source FASTA chunk data to format
+ * @param refs Destation vector to store at
+ * @param kmerSize Formated Reference's sequence length < kmerSize will be dropout
+ * @return Total number of Reference instance in vector refs.
+ */
 int chunkFormat(FastaChunk &fachunk, vector<Reference> &refs, int kmerSize) {
   uint64 pos = 0;
   bool done = false;
@@ -110,6 +124,15 @@ int chunkFormat(FastaChunk &fachunk, vector<Reference> &refs, int kmerSize) {
   return refs.size();
 }
 
+/**
+ * @brief Get next `Refenece` data
+ * @param fachunk Source FASTA chunk data to format
+ * @param done If reach the end of fachunk
+ * @param pos Start postion in fachunk to format
+ * @return A `Reference` instance start at pos in fachunk
+ * @note Because FASTA data do not contained quality and other information except sequence infomation, the `Sequence`
+         in FASTA equal to the `Reference` in FASTQ
+ */
 Reference getNextSeq(FastaChunk &fachunk, bool &done, uint64 &pos) {
   Reference ref;
   if (pos >= fachunk.chunk->size - 1) {
@@ -153,7 +176,14 @@ void print_read(neoReference &ref) {
   std::cout << std::string((char *)ref.base + ref.pqual, ref.lqual) << std::endl;
 }
 
-int chunkFormat(FastqChunk *&fqChunk, std::vector<neoReference> &data, bool mHasQuality = true) {
+/**
+ * @brief Format FASTQ chunks into a vector of `neoRefenece` struct (no-copy format)
+ * @param fqchunk Source FASTQ chunk data to format
+ * @param data Destation vector to store at
+ * @param mHasQuality If the FASTQ data has quality infomation (default: true)
+ * @return Total number of neoReference instance in vector `data`.
+ */
+int chunkFormat(FastqChunk *fqChunk, std::vector<neoReference> &data, bool mHasQuality = true) {
   FastqDataChunk *chunk = fqChunk->chunk;
   uint64_t seq_count = 0;
   uint64_t line_count = 0;
@@ -180,6 +210,130 @@ int chunkFormat(FastqChunk *&fqChunk, std::vector<neoReference> &data, bool mHas
   return seq_count;
 }
 
+int chunkFormat(FastqDataChunk *fqDataChunk, std::vector<neoReference> &data, bool mHasQuality = true) {
+  FastqDataChunk *chunk = fqDataChunk;
+  uint64_t seq_count = 0;
+  uint64_t line_count = 0;
+  uint64_t pos_ = 0;
+  neoReference ref;
+  while (true) {
+    ref.base = chunk->data.Pointer();
+    ref.pname = pos_;
+    if (neoGetLine(chunk, pos_, ref.lname)) {
+      ref.pseq = pos_;
+    } else {
+      break;
+    }
+    neoGetLine(chunk, pos_, ref.lseq);
+    ref.pstrand = pos_;
+    neoGetLine(chunk, pos_, ref.lstrand);
+    ref.pqual = pos_;
+    neoGetLine(chunk, pos_, ref.lqual);
+    seq_count++;
+    // print_read(ref);
+    data.emplace_back(ref);
+  }
+
+  return seq_count;
+}
+
+/**
+ * @brief Format FASTQ chunks into a vector of `Refenece` struct (copy format)
+ * @param fqchunk Source FASTQ chunk data to format
+ * @param data Destation vector to store at
+ * @param mHasQuality If the FASTQ data has quality infomation (default: true)
+ * @return Total number of Reference instance in vector `data`.
+ */
+int chunkFormat(FastqChunk* fqChunk, std::vector<Reference> &data, bool mHasQuality = true){
+	//format a whole chunk and return number of reads
+	FastqDataChunk * chunk = fqChunk->chunk;
+	int seq_count = 0;
+	int line_count = 0;
+	int pos_ = 0;
+	Reference ref;
+
+	while(true){
+		string name = getLine(chunk, pos_);
+		if(name.empty()) break;//dsrc guarantees that read are completed!
+		//std::cerr << name << std::endl;
+
+		string sequence = getLine(chunk, pos_);
+		//std::cerr<< sequence << std::endl;
+
+		string strand = getLine(chunk, pos_);
+		//std::cerr << strand << std::endl;
+		ref.name = name;
+		ref.seq = sequence;
+		ref.strand = strand;
+
+		if(!mHasQuality){
+			string quality = string(sequence.length(), 'K');
+			//std::cerr << quality << std::endl;
+			//data.push_back(new Read(name, sequence, strand, quality));
+			//data.emplace_back(Sketch::Reference(name, "", sequence, strand, quality));
+			ref.quality = quality;
+			data.push_back(ref);
+			seq_count++;
+
+		}else{
+			string quality = getLine(chunk, pos_);
+			//std::cerr << quality << std::endl;
+			//data.push_back(new Read(name, sequence, strand, quality));
+			//data.emplace_back(Sketch::Reference(name, "", sequence, strand, quality));
+			ref.quality = quality;
+			data.push_back(ref);
+			seq_count++;
+		}
+	}
+
+	return seq_count;
+}
+
+int chunkFormat(FastqDataChunk* fqDataChunk, std::vector<Reference> &data, bool mHasQuality = true){
+	//format a whole chunk and return number of reads
+	FastqDataChunk * chunk = fqDataChunk;
+	int seq_count = 0;
+	int line_count = 0;
+	int pos_ = 0;
+	Reference ref;
+
+	while(true){
+		string name = getLine(chunk, pos_);
+		if(name.empty()) break;//dsrc guarantees that read are completed!
+		//std::cerr << name << std::endl;
+
+		string sequence = getLine(chunk, pos_);
+		//std::cerr<< sequence << std::endl;
+
+		string strand = getLine(chunk, pos_);
+		//std::cerr << strand << std::endl;
+		ref.name = name;
+		ref.seq = sequence;
+		ref.strand = strand;
+
+		if(!mHasQuality){
+			string quality = string(sequence.length(), 'K');
+			//std::cerr << quality << std::endl;
+			//data.push_back(new Read(name, sequence, strand, quality));
+			//data.emplace_back(Sketch::Reference(name, "", sequence, strand, quality));
+			ref.quality = quality;
+			data.push_back(ref);
+			seq_count++;
+
+		}else{
+			string quality = getLine(chunk, pos_);
+			//std::cerr << quality << std::endl;
+			//data.push_back(new Read(name, sequence, strand, quality));
+			//data.emplace_back(Sketch::Reference(name, "", sequence, strand, quality));
+			ref.quality = quality;
+			data.push_back(ref);
+			seq_count++;
+		}
+	}
+
+	return seq_count;
+}
+
 string getLine(FastqDataChunk *&chunk, int &pos) {
   int start_pos = pos;
   char *data = (char *)chunk->data.Pointer();
@@ -195,6 +349,7 @@ string getLine(FastqDataChunk *&chunk, int &pos) {
   }
   return "";
 }
+
 int neoGetLine(FastqDataChunk *&chunk, uint64_t &pos, uint64_t &len) {
   int start_pos = pos;
   const char *data = (char *)chunk->data.Pointer();
@@ -220,4 +375,4 @@ int neoGetLine(FastqDataChunk *&chunk, uint64_t &pos, uint64_t &len) {
 }
 }  // namespace fq
 
-}  // namespace mash
+}  // namespace rabbit

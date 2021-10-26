@@ -36,7 +36,7 @@
 #include <string>
 #include <stdexcept>
 
-namespace mash {
+namespace rabbit {
 
 // basic types
 //
@@ -67,6 +67,6 @@ class RioException : public std::exception {
   }
 };
 
-}  // namespace mash
+}  // namespace rabbit
 
 #endif  // H_GLOBALS

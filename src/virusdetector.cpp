@@ -18,6 +18,8 @@ VirusDetector::VirusDetector(Options* opt){
     if(!mOptions->genomeFile.empty())
         mGenomes = new Genomes(mOptions->genomeFile, opt);
     mHits = 0;
+    keymask =  (1ul << (2 * mOptions->kmerKeyLen)) - 1;
+
 }
 
 VirusDetector::~VirusDetector(){
@@ -66,14 +68,14 @@ bool VirusDetector::detect(Read* r) {
     Sequence rSequence = ~(r->mSeq);
     string& rseq = rSequence.mStr;
 
-    return scan(seq) | scan(rseq);
+    return scan(seq); //| scan(rseq);
 }
 
 bool VirusDetector::scan(string& seq) {
     int hitCount = 0;
 
     int keylen = mOptions->kmerKeyLen;
-    int blankBits = 64 - 2*keylen;
+    //int blankBits = 64 - 2*keylen;
 
     bool onlyHitOneGenome = true;
     uint32 lastGenomeID = 0;
@@ -85,6 +87,7 @@ bool VirusDetector::scan(string& seq) {
     bool needAlignment = false;
 
     uint32 start = 0;
+    const uint8_t mask = 0x06;
     uint64 key = Kmer::seq2uint64(seq, start, keylen-1, valid);
     while(valid == false) {
         start++;
@@ -93,53 +96,35 @@ bool VirusDetector::scan(string& seq) {
         if(start >= seq.length() - keylen)
             return false;
     }
-    for(uint32 pos = start; pos < seq.length() - keylen; pos++) {
-        key = (key << 2);
-        switch(seq[pos + keylen-1]) {
-            case 'A':
-                key += 0;
-                break;
-            case 'T':
-                key += 2;
-                break;
-            case 'C':
-                key += 1;
-                break;
-            case 'G':
-                key += 3;
-                break;
-            case 'N':
-            default:
-                // we have to skip the segments covering this N
-                if(pos >= seq.length() - keylen)
-                    continue;
-                pos++;
-                key = Kmer::seq2uint64(seq, pos, keylen-1, valid);
-                bool outterBreak = false;
-                while(valid == false) {
-                    pos++;
-                    key = Kmer::seq2uint64(seq, pos, keylen-1, valid);
-                    // reach the tail
-                    if(pos >= seq.length() - keylen) {
-                        outterBreak = true;
-                        break;
-                    }
-                }
-                if(outterBreak)
-                    break;
-
-                continue;
+    //chang
+    int tmplen = seq.length();
+    uint32 pos = start + keylen - 1;
+    for(; pos < tmplen;) 
+    {
+        key <<= 2;
+        if(seq[pos] == 'N')
+        {
+            pos++;
+            key = 0;
+            if(Kmer::seq2uint64(seq, pos, keylen, key, keymask))
+                return false;
         }
-        key = (key << blankBits) >> blankBits;
+        else
+        {
+            uint8_t meri = seq[pos];
+            meri &= mask;
+            meri >>= 1;
+            key |= (uint64_t)meri;
+            ++pos;
+        }
 
-        // add to genome stats
-        //if(!needAlignment && mGenomes && mGenomes->hasKey(key)) {
-        //    needAlignment = true;
-        //    if(!mKmer)
-        //        break;
-        //}
+        key &= keymask;
 
-        // add to Kmer stas
+        if(!needAlignment && mGenomes && mGenomes->hasKey(key))
+        {
+            needAlignment = true;
+        }
+
         if(mKmer) {
             bool hit = mKmer->add(key);
             if(hit)
@@ -149,9 +134,8 @@ bool VirusDetector::scan(string& seq) {
         if(mKmerCollection) {
             uint32 gid = mKmerCollection->add(key);
             if(gid > 0) {
-                if(lastGenomeID!=0 && gid!=lastGenomeID){
+                if(lastGenomeID!=0 && gid!=lastGenomeID)
                     onlyHitOneGenome = false;
-                }
                 lastGenomeID = gid;
             }
         }
@@ -161,8 +145,8 @@ bool VirusDetector::scan(string& seq) {
         mKmerCollection->addGenomeRead(lastGenomeID);
 
     bool wellMapped = false;
-    if(needAlignment && mGenomes)
-        wellMapped = mGenomes->align(seq);
+    //if(needAlignment && mGenomes)
+    //    wellMapped = mGenomes->align(seq);
 
     return hitCount>0 || wellMapped;
 }

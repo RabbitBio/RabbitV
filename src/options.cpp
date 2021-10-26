@@ -26,7 +26,7 @@ Options::Options(){
     verbose = false;
     seqLen1 = 151;
     seqLen2 = 151;
-    kmerKeyLen = 25;
+    kmerKeyLen = 0;
     positiveThreshold = 0.1;
     depthThreshold = 1.0;
     statsBinSize = 0;

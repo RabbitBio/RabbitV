@@ -34,6 +34,11 @@ NucleotideTree::NucleotideTree(Options* opt){
     mRoot = new NucleotideNode();
 }
 
+NucleotideTree::NucleotideTree(){
+    mOptions = NULL;
+    mRoot = new NucleotideNode();
+}
+
 
 NucleotideTree::~NucleotideTree(){
     delete mRoot;

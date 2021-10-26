@@ -23,14 +23,18 @@ namespace th = boost;
 namespace th = std;
 #endif
 
-namespace mash {
+namespace rabbit {
 
 namespace core {
 
+/*
+ * @brief DataQueue class 
+ * This class provide an data queue for synchronize data access
+ */	
 template <class _TDataType>
 class TDataQueue {
   typedef _TDataType DataType;
-  typedef std::queue<std::pair<int64, DataType *> > part_queue;
+  typedef std::queue<std::pair<int64, DataType *> > part_queue; 
 
   const uint32 threadNum;
   const uint32 maxPartNum;
@@ -44,9 +48,14 @@ class TDataQueue {
   th::condition_variable queueEmptyCondition;
 
  public:
-  static const uint32 DefaultMaxPartNum = 64;
-  static const uint32 DefaultMaxThreadtNum = 64;
+  static const uint32 DefaultMaxPartNum = 64; //default max part number 
+  static const uint32 DefaultMaxThreadtNum = 64; // default max thread number
 
+	/*
+	 * @brief Constructor 
+	 * @param maxPartNum_ maximum parts in queue
+	 * @param threadNum_ the number of threads push data into the queue
+	 */
   TDataQueue(uint32 maxPartNum_ = DefaultMaxPartNum, uint32 threadNum_ = 1)
       : threadNum(threadNum_), maxPartNum(maxPartNum_), partNum(0), currentThreadMask(0) {
     ASSERT(maxPartNum_ > 0);
@@ -57,11 +66,17 @@ class TDataQueue {
   }
 
   ~TDataQueue() {}
-
+  
+	/*
+	 * @brief return if the queue is empty 
+	 */
   bool IsEmpty() { return parts.empty(); }
 
+	/*
+	 * @brief return if all task is complete
+	 */
   bool IsCompleted() { return parts.empty() && currentThreadMask == completedThreadMask; }
-
+	
   void SetCompleted() {
     th::lock_guard<th::mutex> lock(mutex);
 
@@ -112,6 +127,6 @@ class TDataQueue {
 
 }  // namespace core
 
-}  // namespace mash
+}  // namespace rabbit
 
 #endif  // DATA_QUEUE_H

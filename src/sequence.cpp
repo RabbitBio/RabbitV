@@ -16,7 +16,14 @@ int Sequence::length(){
 }
 
 Sequence Sequence::reverseComplement(){
-    string str(mStr.length(), 0);
+    int strlen = mStr.length() - 1;
+    string str(strlen + 1, 0);
+    for(int i = 0; i <= strlen; ++i)
+    {
+        str[strlen - i] = reverseArray[((mStr[i] & reverseMask) >> 1)];
+    }
+    return Sequence(str);
+    /*
     for(int c=0;c<mStr.length();c++){
         char base = mStr[c];
         switch(base){
@@ -41,6 +48,7 @@ Sequence Sequence::reverseComplement(){
         }
     }
     return Sequence(str);
+    */
 }
 
 Sequence Sequence::operator~(){

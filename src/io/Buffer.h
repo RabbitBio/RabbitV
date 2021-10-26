@@ -16,12 +16,15 @@
 #include "Globals.h"
 #include "utils.h"
 
-namespace mash {
+namespace rabbit {
 
 namespace core {
 
 #define USE_64BIT_MEMORY 1
 
+/**
+ * @brief: buffer to store chunk data
+ */
 class Buffer {
  public:
   Buffer(uint64 size_) {
@@ -41,12 +44,13 @@ class Buffer {
 
   uint64 Size() const { return size; }
 
+	/// return the pointer of buffer
   byte *Pointer() const { return (byte *)buffer; }
 
 #if (USE_64BIT_MEMORY)
   uint64 *Pointer64() const { return buffer; }
 #endif
-
+	/// resize the buffer
   void Extend(uint64 size_, bool copy_ = false) {
 #if (USE_64BIT_MEMORY)
     uint64 size64 = size / 8;
@@ -96,11 +100,18 @@ class Buffer {
   uint64 size;
 };
 
+/**
+ * @brief: rabbitio chunk data wapper
+ */
 struct DataChunk {
+	/// default swap buffer size
   static const uint64 DefaultBufferSize = 1 << 20;  // 1 << 22
 
+	/// chunk data
   Buffer data;
+	/// chunk size
   uint64 size;
+	/// list to matain all sequence chunk in one part
   DataChunk *next = NULL;  //[haoz:]added for all seqchunk in one part
 
   DataChunk(const uint64 bufferSize_ = DefaultBufferSize) : data(bufferSize_), size(0) {}
@@ -118,6 +129,6 @@ struct DataPairChunk {
 
 }  // namespace core
 
-}  // namespace mash
+}  // namespace rabbit
 
 #endif  // BUFFER_H

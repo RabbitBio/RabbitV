@@ -32,6 +32,7 @@ private:
     Kmer* mKmer;
     KmerCollection* mKmerCollection;
     uint64 mHits;
+    uint64 keymask;
 };
 
 

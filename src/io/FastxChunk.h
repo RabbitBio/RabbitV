@@ -22,15 +22,19 @@
 #include "Globals.h"
 #include "utils.h"
 
-namespace mash {
+namespace rabbit {
 
 namespace fa {
 
 typedef core::DataChunk FastaDataChunk;
-
+/// fasta data queue
 typedef core::TDataQueue<FastaDataChunk> FastaDataQueue;
+/// fasta data pool
 typedef core::TDataPool<FastaDataChunk> FastaDataPool;
 
+/*
+ * @brief Fasta data chunk class
+ */	
 struct FastaChunk {
   FastaDataChunk *chunk;
   uint64 start;
@@ -45,7 +49,7 @@ struct FastaChunk {
   }
 };
 
-}  // namespace fa
+} // namespace fa
 
 namespace fq {
 
@@ -55,16 +59,25 @@ typedef core::DataPairChunk FastqDataPairChunk;
 typedef core::TDataQueue<FastqDataChunk> FastqDataQueue;
 typedef core::TDataPool<FastqDataChunk> FastqDataPool;
 
+/*
+ * @brief Fastq single-end data class
+ */	
 struct FastqChunk {
+	/// chunk data \n FastqDataChunk is defined as: `typedef core::DataChunk FastqDataChunk;`
   FastqDataChunk *chunk;
 };
 
+/*
+ * @brief Fastq pair-end data class
+ * @details Fastq pair-end data class, include left part and right part, each part is FastqChunk class
+ */	
 struct FastqPairChunk {
+	/// chunk data
   FastqDataPairChunk *chunk;
 };
 
-}  // namespace fq
+} // namespace fq
 
-}  // namespace mash
+} // namespace rabbit
 
 #endif

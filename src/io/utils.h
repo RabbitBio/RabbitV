@@ -14,7 +14,7 @@
 
 #include <string>
 
-namespace mash {
+namespace rabbit {
 
 namespace core {
 
@@ -152,6 +152,6 @@ inline uint32 bit_length(uint64 x) {
 
 }  // namespace core
 
-}  // namespace mash
+}  // namespace rabbit
 
 #endif

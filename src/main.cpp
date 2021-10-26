@@ -1,3 +1,5 @@
+#include <iostream>
+#include <sys/time.h>
 #include <stdio.h>
 #include "fastqreader.h"
 #include "unittest.h"
@@ -136,8 +138,6 @@ int main(int argc, char* argv[]){
     cmd.add<string>("umi_prefix", 0, "if specified, an underline will be used to connect prefix and UMI (i.e. prefix=UMI, UMI=AATTCG, final=UMI_AATTCG). No prefix by default", false, "");
     cmd.add<int>("umi_skip", 0, "if the UMI is in read1/read2, fastv can skip several bases following UMI, default is 0", false, 0);
 
-    // kmerKeyLen
-    cmd.add<int>("kmer_len", 'K', "the uniuqe k-mer length, default is 25", false, 25);
     
     cmd.parse_check(argc, argv);
 
@@ -316,8 +316,6 @@ int main(int argc, char* argv[]){
 
     // threading
     opt.thread = cmd.get<int>("thread");
-    // kmerKeyLen
-    opt.kmerKeyLen = cmd.get<int>("kmer_len");
 
     // reporting
     opt.jsonFile = cmd.get<string>("json");
@@ -362,7 +360,9 @@ int main(int argc, char* argv[]){
     }
     command = ss.str();
 
-    time_t t1 = time(NULL);
+    //time_t t1 = time(NULL);
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
 
     bool supportEvaluation = !opt.inputFromSTDIN && opt.in1!="/dev/stdin";
 
@@ -426,12 +426,14 @@ int main(int argc, char* argv[]){
     Processor p(&opt);
     p.process();
     
-    time_t t2 = time(NULL);
+    //time_t t2 = time(NULL);
+    gettimeofday(&end, NULL);
+    double ttime = end.tv_sec - start.tv_sec + (end.tv_usec - start.tv_usec + 0.0) / 1000000;
 
     cerr << endl << "JSON report: " << opt.jsonFile << endl;
     cerr << "HTML report: " << opt.htmlFile << endl;
     cerr << endl << command << endl;
-    cerr << "fastv v" << FASTV_VER << ", time used: " << (t2)-t1 << " seconds" << endl;
+    cerr << "fastv v" << FASTV_VER << ", time used: " << ttime << " seconds" << endl;
 
     return 0;
 }

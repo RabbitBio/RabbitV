@@ -11,13 +11,6 @@
 #include "adaptertrimmer.h"
 #include "polyx.h"
 // modified
-#include "io/FastxStream.h"
-#include "io/FastxChunk.h"
-#include <string>
-#include "io/DataQueue.h"
-#include "io/Formater.h"
-typedef mash::core::TDataQueue<mash::fq::FastqDataChunk> FqChunkQueue;
-// modified over
 
 SingleEndProcessor::SingleEndProcessor(Options* opt){
     readNum = 0;
@@ -73,12 +66,10 @@ bool SingleEndProcessor::process(){
 
     initPackRepository();
 
-    //modified 
-    mash::fq::FastqDataPool* fastqPool = new mash::fq::FastqDataPool(256, 1 << 22);
-    FqChunkQueue queue1(128, 1);
+    FastqDataPool datapool(256, 1 << 22);
+    FastqDataQueue dataqueue(128, 1);
 
-    //modified over
-    std::thread producer(std::bind(&SingleEndProcessor::producerTask, this,fastqPool,std::ref(queue1)));
+    std::thread producer(std::bind(&SingleEndProcessor::producerTask, this, std::ref(datapool), std::ref(dataqueue)));
 
     //TODO: get the correct cycles
     int cycle = 151;
@@ -90,7 +81,8 @@ bool SingleEndProcessor::process(){
 
     std::thread** threads = new thread*[mOptions->thread];
     for(int t=0; t<mOptions->thread; t++){
-        threads[t] = new std::thread(std::bind(&SingleEndProcessor::consumerTask, this, configs[t],fastqPool,std::ref(queue1)));
+        //threads[t] = new std::thread(std::bind(&SingleEndProcessor::consumerTask, this, configs[t],fastqPool,std::ref(queue1)));
+        threads[t] = new std::thread(std::bind(&SingleEndProcessor::consumerTask, this, configs[t], std::ref(datapool), std::ref(dataqueue)));
     }
 
     std::thread* leftWriterThread = NULL;
@@ -346,7 +338,8 @@ void SingleEndProcessor::consumePack(ThreadConfig* config,ReadPack* pack){
 
 }
 
-void SingleEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq)
+//void SingleEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq)
+void SingleEndProcessor::producerTask(FastqDataPool &datapool, FastqDataQueue &dataqueue)
 {
     if(mOptions->verbose)
         loginfo("start to load data"); //debug information
@@ -359,15 +352,32 @@ void SingleEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqChun
     //FastqReader reader(mOptions->in1, true, mOptions->phred64); // 
     
     // modified
-    mash::fq::FastqFileReader* fqFileReader;
-    // 是否是压缩文件
-    bool isZipped = false;
-    if (ends_with(mOptions->in1, ".gz")) {
-        isZipped = true;
+    bool isZipped = ends_with(mOptions->in1, ".gz");
+    FastqFileReader reader(mOptions->in1, datapool, "", isZipped);
+    //
+    uint64_t n_chunks = 0;
+
+    while(true)
+    {
+        FastqDataChunk *chunk = reader.readNextChunk();
+
+        if(chunk == NULL)
+            break;
+
+        n_chunks++;
+
+        dataqueue.Push(n_chunks, chunk);
     }
-    fqFileReader = new mash::fq::FastqFileReader(mOptions->in1, (*fastqPool), "",isZipped);
-    int n_chunks = 0;
-    int line_sum = 0;
+
+    dataqueue.SetCompleted();
+
+    mProduceFinished = true;
+
+    if(mOptions->verbose)
+        loginfo("all reads loaded, start to monitor thread status");
+
+
+    /*
     while (true) {
         mash::fq::FastqChunk* fqChunk = new mash::fq::FastqChunk;
         fqChunk->chunk = fqFileReader->readNextChunk();
@@ -381,6 +391,7 @@ void SingleEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqChun
     delete fqFileReader;
     std::cout << "file " << mOptions->in1 << " has " << n_chunks << " chunks" << std::endl;
     // modified over
+    */
     
     /*
     int count=0; // data or pack中read的个数
@@ -443,7 +454,7 @@ void SingleEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqChun
             count = 0;
             // re-evaluate split size
             // TODO: following codes are commented since it may cause threading related conflicts in some systems
-            /*if(mOptions->split.needEvaluation && !splitSizeReEvaluated && readNum >= mOptions->split.size) {
+            if(mOptions->split.needEvaluation && !splitSizeReEvaluated && readNum >= mOptions->split.size) {
                 splitSizeReEvaluated = true;
                 // greater than the initial evaluation
                 if(readNum >= 1024*1024) {
@@ -460,9 +471,11 @@ void SingleEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqChun
     */
     
     //std::unique_lock<std::mutex> lock(mRepo.readCounterMtx);
+    /*
     mProduceFinished = true;
     if(mOptions->verbose)
         loginfo("all reads loaded, start to monitor thread status");
+        */
     //lock.unlock();
 
     // if the last data initialized is not used, free it
@@ -470,8 +483,65 @@ void SingleEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqChun
     //    delete[] data;
 }
 
-void SingleEndProcessor::consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq)
+//void SingleEndProcessor::consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq)
+void SingleEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datapool, FastqDataQueue& dataqueue)
 {
+    rabbit::int64  id = 0;
+    //uint64_t seqs_len = 0;
+    uint64_t seq_to_pro_len = 0;
+
+    FastqDataChunk *chunk;
+    Read** to_process_seqs;
+
+    while(dataqueue.Pop(id, chunk))
+    {
+        vector<neoReference> seqs;
+        seqs.reserve(10000);
+        uint64_t seqs_len = rabbit::fq::chunkFormat(chunk, seqs, true);
+
+        seq_to_pro_len = seqs_len;
+        if(mOptions->readsToProcess > 0 && seqs_len + readNum >= mOptions->readsToProcess)
+            seq_to_pro_len = mOptions->readsToProcess - readNum;
+
+        to_process_seqs = new Read*[seq_to_pro_len];
+
+        for(uint64_t i = 0; i < seq_to_pro_len; i++)
+        {
+            Read* read = new Read(
+                        string((char*)seqs[i].base + seqs[i].pname, seqs[i].lname),
+                        string((char*)seqs[i].base + seqs[i].pseq, seqs[i].lseq),
+                        string((char*)seqs[i].base + seqs[i].pstrand, seqs[i].lstrand),
+                        string((char*)seqs[i].base + seqs[i].pqual, seqs[i].lqual)
+                    );
+
+            to_process_seqs[i] = read;
+        }
+
+
+        ReadPack* pack = new ReadPack;
+        pack->data = to_process_seqs;
+        pack->count = seq_to_pro_len;
+        processSingleEnd(pack, config);
+        //consumePack(config, pack);
+
+        readNum += seq_to_pro_len;
+
+        datapool.Release(chunk);
+    }
+
+    mFinishedThreads++;
+
+    if(mFinishedThreads == mOptions->thread) {
+        if(mLeftWriter)
+            mLeftWriter->setInputCompleted();
+    }
+
+    if(mOptions->verbose) {
+        string msg = "thread " + to_string(config->getThreadId() + 1) + " finished";
+        loginfo(msg);
+    }
+
+    //reads.reserve(10000);
     //while(true) {
     //    if(config->canBeStopped()){
     //        mFinishedThreads++;
@@ -479,6 +549,7 @@ void SingleEndProcessor::consumerTask(ThreadConfig* config,mash::fq::FastqDataPo
     //    }
 
         // modified
+        /*
         mash::int64 seq_count_start = 0;
         mash::int64 seq_count = 0;
         mash::int64 id = 0;
@@ -584,6 +655,7 @@ void SingleEndProcessor::consumerTask(ThreadConfig* config,mash::fq::FastqDataPo
         string msg = "thread " + to_string(config->getThreadId() + 1) + " finished";
         loginfo(msg);
     }
+    */
 }
 
 void SingleEndProcessor::writeTask(WriterThread* config)

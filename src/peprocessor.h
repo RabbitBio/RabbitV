@@ -18,16 +18,16 @@
 #include "duplicate.h"
 #include "virusdetector.h"
 
-// modified
 #include "io/FastxStream.h"
 #include "io/FastxChunk.h"
-#include <string>
-#include "io/DataQueue.h"
+#include "io/Reference.h"
 #include "io/Formater.h"
-typedef mash::core::TDataQueue<mash::fq::FastqDataPairChunk> FqPairChunkQueue;
-typedef mash::core::TDataQueue<mash::fq::FastqDataChunk> FqChunkQueue;
-// modified over
 
+typedef rabbit::fq::FastqFileReader FastqFileReader;
+typedef rabbit::fq::FastqDataPairChunk FastqDataPairChunk;
+typedef rabbit::fq::FastqDataPool FastqDataPool;
+typedef rabbit::core::TDataQueue<FastqDataPairChunk> FastqDataPairQueue;
+typedef rabbit::fq::FastqDataChunk FastqDataChunk;
 
 using namespace std;
 
@@ -62,13 +62,15 @@ private:
     void initPackRepository();
     void destroyPackRepository();
     void producePack(ReadPairPack* pack);
-    // modified
     //void consumePack(ThreadConfig* config);
     void consumePack(ThreadConfig* config, ReadPairPack* data);
+
+    void producerTask(FastqDataPool&, FastqDataPairQueue&);
+    void consumerTask(ThreadConfig* config, FastqDataPool&, FastqDataPairQueue&);
     //void producerTask();
-    void producerTask(mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue& dq,FqChunkQueue& dq2);
+    //void producerTask(mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue& dq,FqChunkQueue& dq2);
     // void consumerTask(ThreadConfig* config);
-    void consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue& dq,FqChunkQueue& dq2);
+    //void consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue& dq,FqChunkQueue& dq2);
     // modified over
     void initConfig(ThreadConfig* config);
     void initOutput();

@@ -12,22 +12,6 @@
 #include "htmlreporter.h"
 #include "polyx.h"
 
-// modified
-#include "io/FastxStream.h"
-#include "io/FastxChunk.h"
-#include <string>
-#include "io/DataQueue.h"
-#include "io/Formater.h"
-typedef mash::core::TDataQueue<mash::fq::FastqDataPairChunk>FqPairChunkQueue;
-typedef mash::core::TDataQueue<mash::fq::FastqDataChunk>FqChunkQueue;
-// modified over
-#include <sys/time.h>
-double get_time(){
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000;
-}
-
 PairEndProcessor::PairEndProcessor(Options* opt){
     readNum = 0;
     mOptions = opt;
@@ -51,11 +35,7 @@ PairEndProcessor::PairEndProcessor(Options* opt){
         mDuplicate = new Duplicate(mOptions);
     }
 
-		cout << "detector init start" << endl;
-		double start_time = get_time();
     mVirusDetector = new VirusDetector(opt);
-		double end_time = get_time();
-		cout << "detector init end, time: " << end_time - start_time << endl;
 }
 
 PairEndProcessor::~PairEndProcessor() {
@@ -101,12 +81,12 @@ bool PairEndProcessor::process(){
 
     initPackRepository();
     // modified
-    mash::fq::FastqDataPool* fastqPool = new mash::fq::FastqDataPool(256, 1 << 22);
-    FqPairChunkQueue queue1(128, 1);
-    FqChunkQueue queue2(128,1);
+    FastqDataPool datapool(512, 1 << 22);
+    FastqDataPairQueue dataqueue(512, 1);
     // modified over
 
-    std::thread producer(std::bind(&PairEndProcessor::producerTask, this,fastqPool,std::ref(queue1),std::ref(queue2)));
+    //std::thread producer(std::bind(&PairEndProcessor::producerTask, this,fastqPool,std::ref(queue1),std::ref(queue2)));
+    std::thread producer(std::bind(&PairEndProcessor::producerTask, this, std::ref(datapool), std::ref(dataqueue)));
 
     //TODO: get the correct cycles
     int cycle = 151;
@@ -118,7 +98,8 @@ bool PairEndProcessor::process(){
 
     std::thread** threads = new thread*[mOptions->thread];
     for(int t=0; t<mOptions->thread; t++){
-        threads[t] = new std::thread(std::bind(&PairEndProcessor::consumerTask, this, configs[t],fastqPool,std::ref(queue1),std::ref(queue2)));
+        //threads[t] = new std::thread(std::bind(&PairEndProcessor::consumerTask, this, configs[t],fastqPool,std::ref(queue1),std::ref(queue2)));
+        threads[t] = new std::thread(std::bind(&PairEndProcessor::consumerTask, this, configs[t], std::ref(datapool), std::ref(dataqueue)));
     }
 
     std::thread* leftWriterThread = NULL;
@@ -571,17 +552,40 @@ void PairEndProcessor::producerTask()
         delete[] data;
 }
 */
-void PairEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue& dq,FqChunkQueue& dq2)
+//void PairEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue& dq,FqChunkQueue& dq2)
+void PairEndProcessor::producerTask(FastqDataPool& datapool, FastqDataPairQueue& dataqueue)
 {
     if (mOptions->verbose)
         loginfo("start to load data");
-    mash::fq::FastqFileReader* fqFileReader;
-    bool isZipped = false;
-    if (ends_with(mOptions->in1, ".gz")) {
-        isZipped = true;
+    //mash::fq::FastqFileReader* fqFileReader;
+
+    bool isZipped = ends_with(mOptions->in1, ".gz");
+    FastqFileReader reader(mOptions->in1, datapool, mOptions->in2, isZipped);
+
+    uint64_t n_chunks = 0;
+
+    while(true)
+    {
+        FastqDataPairChunk *chunk = reader.readNextPairChunk();
+
+        if(chunk == NULL)
+            break;
+
+        n_chunks++;
+
+        dataqueue.Push(n_chunks, chunk);
     }
-    fqFileReader = new mash::fq::FastqFileReader(mOptions->in1, *fastqPool, mOptions->in2, isZipped);
-    int n_chunks = 0;
+
+    dataqueue.SetCompleted();
+
+    mProduceFinished = true;
+
+    if(mOptions->verbose)
+        loginfo("all reads loaded, start to monitor thread status");
+
+
+    /*
+
     if(mOptions->interleavedInput){
         while(true){
             mash::fq::FastqChunk * fqChunk2 = new mash::fq::FastqChunk;
@@ -609,6 +613,7 @@ void PairEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqPairCh
     mProduceFinished = true;
     if (mOptions->verbose)
         loginfo("all reads loaded, start to monitor thread status");
+    */
 }
 // modified over
 
@@ -662,139 +667,80 @@ void PairEndProcessor::consumerTask(ThreadConfig* config)
     }
 }
 */
-void PairEndProcessor::consumerTask(ThreadConfig* config, mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue & dq,FqChunkQueue& dq2)
+//void PairEndProcessor::consumerTask(ThreadConfig* config, mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue & dq,FqChunkQueue& dq2)
+
+void PairEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datapool, FastqDataPairQueue& dataqueue)
 {
     // TODO when file is interleaved
-    bool needToBreak = false;
-    mash::int64 id = 0;
-    std::vector<neoReference> left_data;
-    std::vector<neoReference> right_data;
-    left_data.reserve(10000);
-    right_data.reserve(10000);
-    mash::fq::FastqPairChunk* fqChunk = new mash::fq::FastqPairChunk;
-    mash::fq::FastqChunk* left_fqChunk = new mash::fq::FastqChunk;
-    mash::fq::FastqChunk* right_fqChunk = new mash::fq::FastqChunk;
-    mash::int64 left_start = 0, right_start = 0;
-    mash::int64 left_count = 0, right_count = 0;
-    mash::int64 left_end  = left_start + left_count;
-    ReadPair** data = new ReadPair * [PACK_SIZE];
-    memset(data, 0, sizeof(ReadPair*) * PACK_SIZE);
-    int count = 0; // 当前data中readPair的数量
-    // interleaved
-    mash::fq::FastqChunk* fqChunk2 = new mash::fq::FastqChunk;
-    if(mOptions->interleavedInput){
-        while(dq2.Pop(id,fqChunk2->chunk)){
-            if(config->canBeStopped()){
-                break;
-            }
-            left_count = mash::fq::chunkFormat(fqChunk2,left_data,true);
-            left_end = left_start + left_count;
-            std::string name1 = std::string((char*)left_data[left_start].base + left_data[left_start].pname, left_data[left_start].lname);
-            std::string name2 = std::string((char*)left_data[left_start+1].base + left_data[left_start+1].pname, left_data[left_start+1].lname);
-            // 靠靠read靠靠靠pair
-            //if(name1.substr(0,name1.find(' ')) != name2.substr(0,name2.find(' '))){
-            if(std::stol(name1.substr(16,name1.find(' '))) % 2 == 0){
-                //printf("name1: %s\n",(name1.substr(0,name1.find(' '))));
-                //std::cout<<"name :"<<name1.substr(0,16)<<std::endl;
-                left_start++;
-            }
+    //
 
-            for(mash::int64 start = left_start; start < left_end - 1; start++){
-                std::string name1 = std::string((char*)left_data[start].base + left_data[start].pname, left_data[start].lname);
-                std::string seq1 = std::string((char*)left_data[start].base + left_data[start].pseq, left_data[start].lseq);
-                std::string strand1 = std::string((char*)left_data[start].base + left_data[start].pstrand, left_data[start].lstrand);
-                std::string quality1 = std::string((char*)left_data[start].base + left_data[start].pqual, left_data[start].lqual);
-                Read* l = new Read(name1, seq1, strand1, quality1, mOptions->phred64);
-                start++;
-                std::string name2 = std::string((char*)left_data[start+1].base + left_data[start+1].pname, left_data[start+1].lname);
-                std::string seq2 = std::string((char*)left_data[start].base + left_data[start].pseq, left_data[start].lseq);
-                std::string strand2 = std::string((char*)left_data[start].base + left_data[start].pstrand, left_data[start].lstrand);
-                std::string quality2 = std::string((char*)left_data[start].base + left_data[start].pqual, left_data[start].lqual);
-                Read* r = new Read(name2, seq2, strand2, quality2, mOptions->phred64);
-                ReadPair* read = new ReadPair(l, r);
-                data[count] = read;
-                count++;
-                // configured to process only first N reads
-                if (mOptions->readsToProcess > 0 && count + readNum >= mOptions->readsToProcess) {
-                    needToBreak = true;
-                }
-                if (count == PACK_SIZE || needToBreak) {
-                    ReadPairPack* pack = new ReadPairPack;
-                    pack->data = data;
-                    pack->count = count;
-                    readNum += count;
-                    // consumPack
-                    consumePack(config,pack);
-                    data = new ReadPair * [PACK_SIZE];
-                    memset(data, 0, sizeof(ReadPair*) * PACK_SIZE);
-                    count = 0;
-                }
+    rabbit::int64  id = 0;
+    uint64_t seq_to_pro_len = 0;
 
-            }// for
-            left_start  = left_end;
-            fastqPool->Release(fqChunk2->chunk);
-        } // while
-    }else{
-        // not interleaved
-        while (dq.Pop(id, fqChunk->chunk)) {
-            if (config->canBeStopped()) {
-                // mFinishedThreads++;
-                break;
-            }
-            left_fqChunk->chunk = fqChunk->chunk->left_part;
-            right_fqChunk->chunk = fqChunk->chunk->right_part;
-            left_count = mash::fq::chunkFormat(left_fqChunk, left_data, true);
-            right_count = mash::fq::chunkFormat(right_fqChunk, right_data, true);
-            // 左右datachunk里面的read数量相等
-            for (mash::int64 start = left_start; start < left_start + left_count; start++) {
-                std::string name1 = std::string((char*)left_data[start].base + left_data[start].pname, left_data[start].lname);
-                std::string seq1 = std::string((char*)left_data[start].base + left_data[start].pseq, left_data[start].lseq);
-                std::string strand1 = std::string((char*)left_data[start].base + left_data[start].pstrand, left_data[start].lstrand);
-                std::string quality1 = std::string((char*)left_data[start].base + left_data[start].pqual, left_data[start].lqual);
-                Read* l = new Read(name1, seq1, strand1, quality1, mOptions->phred64);
-                std::string name2 = std::string((char*)right_data[start].base + right_data[start].pname, right_data[start].lname);
-                std::string seq2 = std::string((char*)right_data[start].base + right_data[start].pseq, right_data[start].lseq);
-                std::string strand2 = std::string((char*)right_data[start].base + right_data[start].pstrand, right_data[start].lstrand);
-                std::string quality2 = std::string((char*)right_data[start].base + right_data[start].pqual, right_data[start].lqual);
-                Read* r = new Read(name2, seq2, strand2, quality2, mOptions->phred64);
-                ReadPair* read = new ReadPair(l, r);
-                data[count] = read;
-                count++;
-                // configured to process only first N reads
-                if (mOptions->readsToProcess > 0 && count + readNum >= mOptions->readsToProcess) {
-                    needToBreak = true;
-                }
-                if (count == PACK_SIZE || needToBreak) {
-                    ReadPairPack* pack = new ReadPairPack;
-                    pack->data = data;
-                    pack->count = count;
-                    readNum += count;
-                    // consumPack
-                    consumePack(config,pack);
-                    data = new ReadPair * [PACK_SIZE];
-                    memset(data, 0, sizeof(ReadPair*) * PACK_SIZE);
-                    count = 0;
-                }
+    FastqDataChunk* left_chunk;
+    FastqDataChunk* right_chunk;
+    FastqDataPairChunk* chunk;
 
-            } // for
-    
-            left_start += left_count;
-            fastqPool->Release(fqChunk->chunk->left_part);
-            fastqPool->Release(fqChunk->chunk->right_part);
-        } // while
-    }// interleaved else
-    delete fqChunk2;
-    delete left_fqChunk;
-    delete right_fqChunk;
-    // 从dataqueue中获取不到新的chunk的时候 判断之前data是否还存在没处理的数据
-    if (count > 0) {
+    ReadPair** to_process_seqs;
+
+    while(dataqueue.Pop(id, chunk))
+    {
+        if(config->canBeStopped())
+            break;
+
+        left_chunk = chunk->left_part;
+        right_chunk = chunk->right_part;
+
+        vector<neoReference> left_seqs;
+        left_seqs.reserve(10000);
+        vector<neoReference> right_seqs;
+        right_seqs.reserve(10000);
+
+        uint64_t left_seqs_len = rabbit::fq::chunkFormat(left_chunk, left_seqs, true);
+        uint64_t right_seqs_len = rabbit::fq::chunkFormat(right_chunk, right_seqs, true);
+
+        //assert(left_seqs_len == right_seqs_len);
+
+        seq_to_pro_len = left_seqs_len;
+        if(mOptions->readsToProcess > 0 && left_seqs_len + readNum >= mOptions->readsToProcess)
+            seq_to_pro_len = mOptions->readsToProcess - readNum;
+
+        to_process_seqs = new ReadPair*[seq_to_pro_len];
+
+        for(uint64_t i = 0; i < seq_to_pro_len; i++)
+        {
+            Read* left_read = new Read(
+                        string((char*)(left_seqs[i].base + left_seqs[i].pname), left_seqs[i].lname),
+                        string((char*)(left_seqs[i].base + left_seqs[i].pseq), left_seqs[i].lseq),
+                        string((char*)(left_seqs[i].base + left_seqs[i].pstrand), left_seqs[i].lstrand),
+                        string((char*)(left_seqs[i].base + left_seqs[i].pqual), left_seqs[i].lqual)
+                    );
+
+            Read* right_read = new Read(
+                        string((char*)(right_seqs[i].base + right_seqs[i].pname), right_seqs[i].lname),
+                        string((char*)(right_seqs[i].base + right_seqs[i].pseq), right_seqs[i].lseq),
+                        string((char*)(right_seqs[i].base + right_seqs[i].pstrand), right_seqs[i].lstrand),
+                        string((char*)(right_seqs[i].base + right_seqs[i].pqual), right_seqs[i].lqual)
+                    );
+
+            ReadPair* read = new ReadPair(left_read, right_read);
+
+            to_process_seqs[i] = read;
+        }
+
         ReadPairPack* pack = new ReadPairPack;
-        pack->data = data;
-        pack->count = count;
-        consumePack(config,pack);
-        readNum += count;
+        pack->data = to_process_seqs;
+        pack->count = seq_to_pro_len;
+        processPairEnd(pack, config);
+
+        readNum += seq_to_pro_len;
+
+        datapool.Release(left_chunk);
+        datapool.Release(right_chunk);
     }
+
     mFinishedThreads++;
+
     if (mOptions->verbose) {
         string msg = "thread " + to_string(config->getThreadId() + 1) + " data processing completed";
         loginfo(msg);

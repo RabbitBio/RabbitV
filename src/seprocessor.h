@@ -21,8 +21,17 @@
 #include "io/DataQueue.h"
 #include "io/Formater.h"
 
+#include "io/FastxStream.h"
+#include "io/FastxChunk.h"
+#include "io/Formater.h"
+#include "io/Reference.h"
 
 using namespace std;
+
+typedef rabbit::fq::FastqFileReader FastqFileReader;
+typedef rabbit::fq::FastqDataQueue FastqDataQueue;
+typedef rabbit::fq::FastqDataPool FastqDataPool;
+typedef rabbit::fq::FastqDataChunk FastqDataChunk;
 
 struct ReadPack {
     Read** data;
@@ -30,7 +39,7 @@ struct ReadPack {
 };
 
 typedef struct ReadPack ReadPack;
-typedef mash::core::TDataQueue<mash::fq::FastqDataChunk> FqChunkQueue;
+//typedef mash::core::TDataQueue<mash::fq::FastqDataChunk> FqChunkQueue;
 
 struct ReadRepository {
     ReadPack** packBuffer;
@@ -56,8 +65,11 @@ private:
     void destroyPackRepository();
     void producePack(ReadPack* pack);
     void consumePack(ThreadConfig* config, ReadPack* pack);
-    void producerTask(mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq);
-    void consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool,FqChunkQueue& dq);
+    //void producerTask(mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq);
+    void producerTask(FastqDataPool&, FastqDataQueue&);
+    //void consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool,FqChunkQueue& dq);
+    //
+    void consumerTask(ThreadConfig* config, FastqDataPool&, FastqDataQueue&);
     void initConfig(ThreadConfig* config);
     void initOutput();
     void closeOutput();

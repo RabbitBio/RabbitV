@@ -157,12 +157,6 @@ void KmerCollection::init()
     else if(ends_with(mFilename, ".fasta") || ends_with(mFilename, ".fa")){
         mFile.open(mFilename.c_str(), ifstream::in);
         mZipped = false;
-    }
-    else if(ends_with(mFilename, ".binary") || ends_with(mFilename, ".bin")){
-        mFile.open(mFilename.c_str(), ifstream::in|ifstream::binary);
-        mZipped = false;
-        readAllBin();
-        return;
     } else {
         error_exit("Not a FASTA file: " + mFilename);
     }
@@ -203,8 +197,7 @@ void KmerCollection::init()
             mMedianHits.push_back(0);
             mGenomeReads.push_back(0);
             mNumber++;
-            if (mKmerCounts.size() > 0)
-                cerr << mNumber-2 << ": " << linestr << " kmer size: " << mKmerCounts[mNumber-2] << endl;
+            //cerr<<mNumber<<": " << linestr << endl;
             continue;
         }
 
@@ -438,97 +431,3 @@ void KmerCollection::unpackIdCount(uint32 data, uint32& id, uint32& count) {
     count = data >> mIdBits;
     id = data & mIdMask;
 }
-
-void KmerCollection::readAllBin() {
-  char fname[256];
-  int unique = 0;
-  int total = 0;
-  vector<vector<uint64_t>> allKmer64;
-  string current_ref;
-  if (mOptions->kmerKeyLen == 0 || mOptions->kmerKeyLen > 32)
-    cerr << "plase specify a <= 32 kmer length (default = 25 )"  << endl;
-  
-  while(!mFile.eof()){
-    //-- reading name
-    mFile.getline(fname, 256);
-    current_ref = string(fname);
-    if(current_ref == ""){
-      continue;
-    }
-    if(total > 0){
-      mKmerCounts.push_back(unique);
-      total = 0; unique = 0;
-    }
-    mNames.push_back(current_ref);
-    mHits.push_back(0);
-    allKmer64.push_back(vector<uint64>());
-    mMeanHits.push_back(0.0);
-    mCoverage.push_back(0.0);
-    mMedianHits.push_back(0);
-    mGenomeReads.push_back(0);
-    mNumber++;
-
-    //-- read content
-
-    uint64_t ksize;
-    mFile.read(reinterpret_cast<char*>(&ksize), 8);
-    cerr << mNumber << ": " << current_ref << " kmer size: " << ksize << endl;
-    uint64_t *kmers = new uint64_t[ksize];
-    mFile.read(reinterpret_cast<char*>(kmers), ksize * 8);
-    for(int i = 0; i < ksize; ++i){
-      uint64_t kmer64 = kmers[i];
-      total++;
-      uint64 kmerhash = makeHash(kmer64);
-      //unordered_map<uint64, KCHit>::iterator iter = hashKmerMap.find(kmerhash);
-      if (mHashKCH[kmerhash] == 0)
-      {
-        unique++;
-        mHashKCH[kmerhash] = mNumber;
-        allKmer64[mNumber - 1].push_back(kmer64);
-      }
-      else if (mHashKCH[kmerhash] != COLLISION_FLAG)
-      { // we use the mHits as a flag
-        if (mHashKCH[kmerhash] == mNumber)
-          unique--;
-        else
-        {
-          int collID = mHashKCH[kmerhash] - 1;
-          mKmerCounts[collID]--;
-        }
-        mHashKCH[kmerhash] = COLLISION_FLAG;
-      }
-    }
-    delete [] kmers;
-  }
-  mKmerCounts.push_back(unique);
-
-  mUniqueHashNum = 0;
-  for (int i = 0; i < mNumber; i++)
-    mUniqueHashNum += mKmerCounts[i];
-
-  mKCHits = new KCHit[mUniqueHashNum];
-  memset(mKCHits, 0, sizeof(KCHit) * mUniqueHashNum);
-
-  uint32 cur = 0;
-  for (int i = 0; i < mNumber; i++)
-  {
-    for (int j = 0; j < allKmer64[i].size(); j++)
-    {
-      uint64 kmer64 = allKmer64[i][j];
-      uint64 kmerhash = makeHash(kmer64);
-      uint32 index = mHashKCH[kmerhash];
-      // means unique
-      if (index == i + 1)
-      {
-        if (cur >= mUniqueHashNum)
-          error_exit("Uninque number incorrectly calculated in k-mer collection initialization.");
-        mHashKCH[kmerhash] = cur + 1; // 0 means no hit
-        mKCHits[cur].mID = i;
-        mKCHits[cur].mHit = 0;
-        mKCHits[cur].mKey64 = kmer64;
-        cur++;
-      }
-    }
-  }
-}
-

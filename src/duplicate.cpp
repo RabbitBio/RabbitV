@@ -3,6 +3,8 @@
 #include <memory.h>
 #include <math.h>
 
+const int basearray[4] = {0, 2, 1, 3};
+
 Duplicate::Duplicate(Options* opt) {
     mOptions = opt;
     mKeyLenInBase = mOptions->duplicate.keylen;
@@ -41,6 +43,25 @@ uint64 Duplicate::seq2int(const char* data, int start, int keylen, bool& valid) 
 
 uint64 Duplicate::seq2int2(const char* data, int start, int keylen, bool& valid) {
     uint64 ret = 0;
+    for(int i = 0; i < keylen - 1; i++)
+    {
+        if(data[start + i] == 'N')
+        {
+            valid = false;
+            return 0;
+        }
+        ret |= basearray[(data[start + i] & 0x06) >> 1];
+        ret <<= 2;
+    }
+
+    if(data[start + keylen - 1] == 'N')
+    {
+        valid = false;
+        return 0;
+    }
+
+    return ret |= basearray[(data[start + keylen - 1] & 0x06) >> 1];
+    /*
     for(int i=0; i<keylen; i++) {
         switch(data[start + i]) {
             case 'A':
@@ -63,7 +84,7 @@ uint64 Duplicate::seq2int2(const char* data, int start, int keylen, bool& valid)
         if(i != keylen-1)
             ret <<= 2;
     }
-    return ret;
+    */
 }
 
 

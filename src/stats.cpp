@@ -1,6 +1,7 @@
 #include "stats.h"
 #include <memory.h>
 #include <sstream>
+#include <immintrin.h>
 #include "util.h"
 
 #define KMER_LEN 5
@@ -53,10 +54,26 @@ Stats::Stats(Options* opt, bool isRead2, int guessedCycles, int bufferMargin){
     mCycleTotalQual = new long[mBufLen];
     memset(mCycleTotalQual, 0, sizeof(long)*mBufLen);
 
+    //临时数组
+    mCycleQ30BasesTemp = new int[mBufLen*8];
+    memset(mCycleQ30BasesTemp, 0, sizeof(int)*mBufLen*8);
+
+    mCycleQ20BasesTemp = new int[mBufLen*8];
+    memset(mCycleQ20BasesTemp, 0, sizeof(int)*mBufLen*8);
+
+    mCycleBaseContentsTemp = new int[mBufLen*8];
+    memset(mCycleBaseContentsTemp, 0, sizeof(int)*mBufLen*8);
+
+    mCycleBaseQualTemp = new int[mBufLen*8];
+    memset(mCycleBaseQualTemp, 0, sizeof(int)*mBufLen*8);
+    //将临时数组剩于空间序列条数初始化为maxCount
+    tempEmpty = maxCount;
+
+    /**没有必要有mkmer了
     mKmerBufLen = 2<<(KMER_LEN * 2);
     mKmer = new long[mKmerBufLen];
     memset(mKmer, 0, sizeof(long)*mKmerBufLen);
-
+    **/
 }
 
 void Stats::extendBuffer(int newBufLen){
@@ -102,6 +119,34 @@ void Stats::extendBuffer(int newBufLen){
     delete mCycleTotalQual;
     mCycleTotalQual = newBuf;
 
+    //临时数组的扩展
+    int *newTempBuff = NULL;
+
+    newTempBuff = new int[newBufLen*8];
+    memset(newTempBuff, 0, sizeof(int)*newBufLen*8);
+    memcpy(newTempBuff, mCycleQ30BasesTemp, sizeof(int)*mBufLen*8);
+    delete mCycleQ30BasesTemp;
+    mCycleQ30BasesTemp = newTempBuff;
+
+    newTempBuff = new int[newBufLen*8];
+    memset(newTempBuff, 0, sizeof(int)*newBufLen*8);
+    memcpy(newTempBuff, mCycleQ20BasesTemp, sizeof(int)*mBufLen*8);
+    delete mCycleQ20BasesTemp;
+    mCycleQ20BasesTemp = newTempBuff;
+
+    newTempBuff = new int[newBufLen*8];
+    memset(newTempBuff, 0, sizeof(int)*newBufLen*8);
+    memcpy(newTempBuff, mCycleBaseContentsTemp, sizeof(int)*mBufLen*8);
+    delete mCycleBaseContentsTemp;
+    mCycleBaseContentsTemp = newTempBuff;
+
+    newTempBuff = new int[newBufLen*8];
+    memset(newTempBuff, 0, sizeof(int)*newBufLen*8);
+    memcpy(newTempBuff, mCycleBaseQualTemp, sizeof(int)*mBufLen*8);
+    delete mCycleBaseQualTemp;
+    mCycleBaseQualTemp = newTempBuff;
+
+
     mBufLen = newBufLen;
 }
 
@@ -123,6 +168,12 @@ Stats::~Stats() {
     delete mCycleTotalBase;
     delete mCycleTotalQual;
 
+    //临时数组的删除
+    delete mCycleQ30BasesTemp;
+    delete mCycleQ20BasesTemp;
+    delete mCycleBaseContentsTemp;
+    delete mCycleBaseQualTemp;
+
     // delete memory of curves
     map<string, double*>::iterator iter;
     for(iter = mQualityCurves.begin(); iter != mQualityCurves.end(); iter++) {
@@ -131,12 +182,19 @@ Stats::~Stats() {
     for(iter = mContentCurves.begin(); iter != mContentCurves.end(); iter++) {
         delete iter->second;
     }
+    /**没有mkmer了
     delete mKmer;
+    **/
 }
 
 void Stats::summarize(bool forced) {
     if(summarized && !forced)
         return;
+
+    moveTempArr2FinalArr();//将临时数组中的值移入最终数组
+
+    countmCycleTotalBase();//根据各分base计算总base
+    countmCycleTotalQual();//根据各分qual计算总qual
 
     // first get the cycle and count total bases
     for(int c=0; c<mBufLen; c++) {
@@ -200,6 +258,7 @@ void Stats::summarize(bool forced) {
     }
     mContentCurves["GC"] = gcContentCurve;
 
+    /**把涉及到mkmer的没必要的部分删去
     mKmerMin = mKmer[0];
     mKmerMax = mKmer[0];
     for(int i=0; i<mKmerBufLen; i++) {
@@ -208,6 +267,7 @@ void Stats::summarize(bool forced) {
         if(mKmer[i] < mKmerMin)
             mKmerMin = mKmer[i];
     }
+    **/
 
     summarized = true;
 }
@@ -219,8 +279,51 @@ int Stats::getMeanLength() {
         return mLengthSum/mReads;
 }
 
+void Stats::countmCycleTotalBase(){
+    //这里将mCycleTotalBase计算出来
+    for(int i = 0;i<mBufLen;i++){
+        mCycleTotalBase[i] = 0;
+        for(int j = 0;j<8;j++){
+            mCycleTotalBase[i] += mCycleBaseContents[j][i];
+        }
+    }
+}
+
+void Stats::countmCycleTotalQual(){
+    //这里将mCycleTotalQual计算出来
+    for(int i = 0;i<mBufLen;i++){
+        mCycleTotalQual[i] = 0;
+        for(int j = 0;j<8;j++){
+            mCycleTotalQual[i] += mCycleBaseQual[j][i];
+        }
+    }
+}
+
+void Stats::moveTempArr2FinalArr(){
+    //将临时数组里的东西移到最终数组当中，并且将临时数组归零
+    for(int i = 0;i<mBufLen;i++){
+        for(int j = 0;j<8;j++){
+            mCycleQ30Bases[j][i] += mCycleQ30BasesTemp[i*8+j];
+            mCycleQ20Bases[j][i] += mCycleQ20BasesTemp[i*8+j];
+            mCycleBaseContents[j][i] += mCycleBaseContentsTemp[i*8+j];
+            mCycleBaseQual[j][i] += mCycleBaseQualTemp[i*8+j];
+
+            mCycleQ30BasesTemp[i*8+j] = 0;
+            mCycleQ20BasesTemp[i*8+j] = 0;
+            mCycleBaseContentsTemp[i*8+j] = 0;
+            mCycleBaseQualTemp[i*8+j] = 0;
+        }
+    }
+    tempEmpty = maxCount;
+}
+
 void Stats::statRead(Read* r) {
     int len = r->length();
+    if(len>268435455){
+        //因为mCycleQ30BasesTemp之类的临时数组是buffLen长度的8倍，
+        //而要想用int作为下标进行索引，就要求序列的长度要小于(2^31-1)/8=268435455
+        cerr<<"序列太长啦，最多只能支持268435455长度的序列"<<endl;
+    }
 
     mLengthSum += len;
 
@@ -230,9 +333,61 @@ void Stats::statRead(Read* r) {
     const char* seqstr = r->mSeq.mStr.c_str();
     const char* qualstr = r->mQuality.c_str();
 
-    int kmer = 0;
-    bool needFullCompute = true;
-    for(int i=0; i<len; i++) {
+    int pallTime = len/16;//向量化最多循环次数
+    int leftTime = len - pallTime*16;//剩于的不能向量化的部分
+
+    const int constInt0X07 = (int)(0X07);
+    const __m512i const0X07 = _mm512_set1_epi32(constInt0X07);//创建一个0X07常数向量
+    const __m512i constAdd1 = _mm512_set1_epi32(1);//创建一个用于+1的常数向量
+    const __m512i constSub33 = _mm512_set1_epi32(33);//创建一个用于-33的常数向量
+    const __m512i constAdd128 = _mm512_set1_epi32(128);//创建一个用于+128的常数向量
+    const __m512i constCharq20 = _mm512_set1_epi32('5');//创建一个q20常数向量
+    const __m512i constCharq30 = _mm512_set1_epi32('?');//创建一个q30常数向量
+
+    __m512i storeBaseIndex = _mm512_set_epi32(120, 112, 104, 96, 88, 80, 72, 64, 56, 48, 40, 32, 24, 16, 8, 0);
+    
+    for(int i = 0;i<pallTime;i++){
+        __mmask16 mask = (1ul << 16) - 1;//16位一次全部load进来
+        __m128i base128 = _mm_maskz_loadu_epi8(mask, seqstr+i*16);//load到一个128空间，一共有16个char
+        //然后让每个char扩展到32位，使用的ZeroExtend32
+        __m512i base512 = _mm512_cvtepu8_epi32(base128);
+
+        __m128i qual128 = _mm_maskz_loadu_epi8(mask, qualstr+i*16);
+        __m512i qual512 = _mm512_cvtepu8_epi32(qual128);//这个使用的是0扩展的，ZeroExtend32
+
+        __m512i offset = _mm512_and_epi32(base512, const0X07);
+        __m512i storeIndex = _mm512_add_epi32(storeBaseIndex, offset);
+
+        __mmask16 q30mask = _mm512_cmp_epi32_mask(constCharq30, qual512, _MM_CMPINT_LE);//得到大于等于q30的mask
+        __mmask16 q20mask = _mm512_cmp_epi32_mask(constCharq20, qual512, _MM_CMPINT_LE);//得到大于等于q20的mask
+
+        //把mCycleQ30BasesTemp增加完毕
+        __m512i mCycleQ30BasesTempGather = _mm512_i32gather_epi32(storeIndex, mCycleQ30BasesTemp, sizeof(int));
+        __m512i mCycleQ30BasesTempStore = _mm512_mask_add_epi32(mCycleQ30BasesTempGather, q30mask, mCycleQ30BasesTempGather, constAdd1);
+        _mm512_i32scatter_epi32(mCycleQ30BasesTemp, storeIndex, mCycleQ30BasesTempStore, sizeof(int));
+
+        //把mCycleQ20BasesTemp增加完毕
+        __m512i mCycleQ20BasesTempGather = _mm512_i32gather_epi32(storeIndex, mCycleQ20BasesTemp, sizeof(int));
+        __m512i mCycleQ20BasesTempStore = _mm512_mask_add_epi32(mCycleQ20BasesTempGather, q20mask, mCycleQ20BasesTempGather, constAdd1);
+        _mm512_i32scatter_epi32(mCycleQ20BasesTemp, storeIndex, mCycleQ20BasesTempStore, sizeof(int));
+
+        //把mCycleBaseContentsTemp增加完毕
+        __m512i mCycleBaseContentsTempGather = _mm512_i32gather_epi32(storeIndex, mCycleBaseContentsTemp, (int)sizeof(int));
+        __m512i mCycleBaseContentsTempStore = _mm512_add_epi32(mCycleBaseContentsTempGather, constAdd1);
+        _mm512_i32scatter_epi32(mCycleBaseContentsTemp, storeIndex, mCycleBaseContentsTempStore, (int)sizeof(int));
+
+        //获得需要叠加上去的质量
+        __m512i addQual = _mm512_sub_epi32(qual512, constSub33);
+        __m512i mCycleBaseQualTempGather = _mm512_i32gather_epi32(storeIndex, mCycleBaseQualTemp, sizeof(int));
+        __m512i mCycleBaseQualTempStore = _mm512_add_epi32(mCycleBaseQualTempGather, addQual);
+        _mm512_i32scatter_epi32(mCycleBaseQualTemp, storeIndex, mCycleBaseQualTempStore, sizeof(int));
+
+        __m512i temp = _mm512_add_epi32(storeBaseIndex, constAdd128);
+        storeBaseIndex = temp;
+    }
+
+    //把剩下的给一个个算了
+    for(int i = pallTime*16; i<len; i++) {
         char base = seqstr[i];
         char qual = qualstr[i];
         // get last 3 bits
@@ -242,76 +397,52 @@ void Stats::statRead(Read* r) {
         const char q30 = '?';
 
         if(qual >= q30) {
-            mCycleQ30Bases[b][i]++;
-            mCycleQ20Bases[b][i]++;
+            mCycleQ30BasesTemp[8*i+b]++;
+            mCycleQ20BasesTemp[8*i+b]++;
         } else if(qual >= q20) {
-            mCycleQ20Bases[b][i]++;
+            mCycleQ20BasesTemp[8*i+b]++;
         }
 
-        mCycleBaseContents[b][i]++;
-        mCycleBaseQual[b][i] += (qual-33);
+        mCycleBaseContentsTemp[8*i+b]++;
+        mCycleBaseQualTemp[8*i+b] += (qual-33);
 
-        mCycleTotalBase[i]++;
-        mCycleTotalQual[i] += (qual-33);
+        /**
+        mCycleTotalBase[i]++;//这个东西可以最后通过mCycleBaseContents累加起来得到，所以没有必要在这里计算
+        mCycleTotalQual[i] += (qual-33);//这个东西可以最后通过mCycleBaseQual累加起来得到，所以也没有必要在这里计算
+        **/
+    }
 
-        if(base == 'N'){
-            needFullCompute = true;
-            continue;
-        }
-
-        // 5 bases required for kmer computing
-        if(i<4)
-            continue;
-
-        // calc 5 KMER
-        // 0x3FC == 0011 1111 1100
-        if(!needFullCompute){
-            int val = base2val(base);
-            if(val < 0){
-                needFullCompute = true;
-                continue;
-            } else {
-                kmer = ((kmer<<2) & 0x3FC ) | val;
-                mKmer[kmer]++;
-            }
-        } else {
-            bool valid = true;
-            kmer = 0;
-            for(int k=0; k<5; k++) {
-                int val = base2val(seqstr[i - 4 + k]);
-                if(val < 0) {
-                    valid = false;
-                    break;
-                }
-                kmer = ((kmer<<2) & 0x3FC ) | val;
-            }
-            if(!valid) {
-                needFullCompute = true;
-                continue;
-            } else {
-                mKmer[kmer]++;
-                needFullCompute = false;
-            }
-        }
-
+    tempEmpty--;
+    if(tempEmpty<=0){
+        //如果剩于容量都用完了，就要把临时数组里面的内容搬运到最终数组当中，并且将临时数组归零
+        moveTempArr2FinalArr();
     }
 
     mReads++;
 }
 
 int Stats::base2val(char base) {
-    switch(base){
-        case 'A':
-            return 0;
-        case 'T':
-            return 2;
-        case 'C':
-            return 1;
-        case 'G':
-            return 3;
-        default:
-            return -1;
+    // (A & 0X07)>>1 = （000）
+    // (C & 0X07)>>1 = （001）
+    // (G & 0X07)>>1 = （011）
+    // (T & 0X07)>>1 = （010）
+    if(base=='N'){
+        return -1;
+    }else{
+        return (base & 0X07)>>1;
     }
+    // switch(base){
+    //     case 'A':
+    //         return 0;
+    //     case 'T':
+    //         return 2;
+    //     case 'C':
+    //         return 1;
+    //     case 'G':
+    //         return 3;
+    //     default:
+    //         return -1;
+    // }
 }
 
 int Stats::getCycles() {
@@ -668,10 +799,12 @@ Stats* Stats::merge(vector<Stats*>& list) {
             s->mCycleTotalQual[j] += list[t]->mCycleTotalQual[j];
         }
 
+        /**最终mkmer没有使用到
         // merge kMer
         for(int i=0; i<s->mKmerBufLen; i++) {
             s->mKmer[i] += list[t]->mKmer[i];
         }
+        **/
     }
 
     s->summarize();
