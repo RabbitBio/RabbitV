@@ -21,6 +21,7 @@ public:
     bool add(uint64 kmer64);
     void report();
     double getMeanHit();
+    double getCoverage();
     string getPlotX();
     string getPlotY();
     int getKmerCount();

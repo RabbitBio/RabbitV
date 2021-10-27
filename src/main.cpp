@@ -138,6 +138,9 @@ int main(int argc, char* argv[]){
     cmd.add<string>("umi_prefix", 0, "if specified, an underline will be used to connect prefix and UMI (i.e. prefix=UMI, UMI=AATTCG, final=UMI_AATTCG). No prefix by default", false, "");
     cmd.add<int>("umi_skip", 0, "if the UMI is in read1/read2, fastv can skip several bases following UMI, default is 0", false, 0);
 
+    // kmerKeyLen
+    cmd.add<int>("kmer_len", 'K', "the uniuqe k-mer length, default is 25", false, 25);
+
     
     cmd.parse_check(argc, argv);
 
@@ -316,6 +319,9 @@ int main(int argc, char* argv[]){
 
     // threading
     opt.thread = cmd.get<int>("thread");
+
+    // kmerKeyLen
+    opt.kmerKeyLen = cmd.get<int>("kmer_len");
 
     // reporting
     opt.jsonFile = cmd.get<string>("json");

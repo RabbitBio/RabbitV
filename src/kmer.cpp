@@ -98,6 +98,19 @@ double Kmer::getMeanHit() {
     return total / (double) mKmerHits.size();
 }
 
+double Kmer::getCoverage() {
+    if(mKmerHits.size() == 0)
+        return 0.0;
+
+    double total = 0;
+    unordered_map<uint64, uint32>::iterator iter;
+    for(iter = mKmerHits.begin(); iter != mKmerHits.end(); iter++) {
+        total += iter->second >= 1 ? 1 : 0;
+    }
+    cout << "informaticn of getCoverage: " << total << " / " << (double)mKmerHits.size();
+    return total / (double) mKmerHits.size();
+}
+
 bool Kmer::add(uint64 kmer64) {
     unordered_map<uint64, uint32>::iterator iter = mKmerHits.find(kmer64);
     if(iter != mKmerHits.end()) {

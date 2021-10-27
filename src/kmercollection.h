@@ -48,6 +48,7 @@ public:
     void reportHTML(ofstream& ofs);
     uint32 add(uint64 kmer64);
     void addGenomeRead(uint32 genomeID);
+    void readAllBin();
 
     uint32 packIdCount(uint32 id, uint32 count);
     void unpackIdCount(uint32 data,uint32& id, uint32& count);
