@@ -4,11 +4,19 @@
 #include <string.h>
 #include <memory.h>
 #include "kmer.h"
+#include <sys/time.h>
+
+inline double get_time(){
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000;
+}
 
 const long HASH_LENGTH = (1L<<30);
 
 KmerCollection::KmerCollection(string filename, Options* opt)
 {
+    double s = get_time();
     mOptions = opt;
     mHashKCH = new uint32[HASH_LENGTH];
     memset(mHashKCH, 0, sizeof(uint32)*HASH_LENGTH);
@@ -21,6 +29,8 @@ KmerCollection::KmerCollection(string filename, Options* opt)
     mUniqueHashNum = 0;
     mKCHits = NULL;
     init();
+    double e = get_time();
+    cerr << "init time : " << e - s << endl;
 }
 
 KmerCollection::~KmerCollection()
@@ -470,7 +480,7 @@ void KmerCollection::readAllBin() {
 
     uint64_t ksize;
     mFile.read(reinterpret_cast<char*>(&ksize), 8);
-    cerr << mNumber << ": " << current_ref << " kmer size: " << ksize << endl;
+    //cerr << mNumber << ": " << current_ref << " kmer size: " << ksize << endl;
     uint64_t *kmers = new uint64_t[ksize];
     mFile.read(reinterpret_cast<char*>(kmers), ksize * 8);
     for(int i = 0; i < ksize; ++i){

@@ -65,8 +65,8 @@ bool VirusDetector::detect(Read* r) {
         return detected;
     }
     string& seq = r->mSeq.mStr;
-    Sequence rSequence = ~(r->mSeq);
-    string& rseq = rSequence.mStr;
+    //Sequence rSequence = ~(r->mSeq);
+    //string& rseq = rSequence.mStr;
 
     return scan(seq); //| scan(rseq);
 }
