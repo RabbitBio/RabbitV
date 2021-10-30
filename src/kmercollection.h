@@ -30,11 +30,16 @@ public:
     int mUniqueReads;
 };
 
-class KCHit {
-public:
-    uint64 mKey64;
-    uint32 mID;
-    uint32 mHit;
+//class KCHit {
+//public:
+//    uint64 mKey64;
+//    uint32 mID;
+//    uint32 mHit;
+//};
+struct KCHit{
+  uint64 mKey64;
+  uint32 mID;
+  uint32 mHit;
 };
 
 class KmerCollection
@@ -70,10 +75,11 @@ private:
     vector<int> mKmerCounts;
     vector<int> mGenomeReads;
     vector<KCResult> mResults;
-    int mNumber;
+    uint32 mNumber;
     uint32 mUniqueHashNum;
     uint32* mHashKCH;
-    KCHit* mKCHits;
+    //KCHit* mKCHits;
+    vector<KCHit> mKCHits;
     string mFilename;
     gzFile mZipFile;
     ifstream mFile;

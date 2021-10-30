@@ -27,7 +27,7 @@ KmerCollection::KmerCollection(string filename, Options* opt)
     mCountMax = 0;
     mStatDone = false;
     mUniqueHashNum = 0;
-    mKCHits = NULL;
+    //mKCHits = NULL;
     init();
     double e = get_time();
     cerr << "init time : " << e - s << endl;
@@ -40,10 +40,10 @@ KmerCollection::~KmerCollection()
         mHashKCH = NULL;
     }
 
-    if(mKCHits) {
-        delete mKCHits;
-        mKCHits = NULL;
-    }
+    //if(mKCHits) {
+    //    delete mKCHits;
+    //    mKCHits = NULL;
+    //}
 
     if (mZipped){
         if (mZipFile){
@@ -258,8 +258,9 @@ void KmerCollection::init()
     for(int i=0; i<mNumber; i++)
         mUniqueHashNum += mKmerCounts[i];
 
-    mKCHits = new KCHit[mUniqueHashNum];
-    memset(mKCHits, 0, sizeof(KCHit)*mUniqueHashNum);
+    //mKCHits = new KCHit[mUniqueHashNum];
+    //memset(mKCHits, 0, sizeof(KCHit)*mUniqueHashNum);
+    mKCHits = vector<KCHit>(mUniqueHashNum);
 
     uint32 cur = 0;
     for(int i=0; i<mNumber; i++) {
@@ -448,6 +449,8 @@ void KmerCollection::unpackIdCount(uint32 data, uint32& id, uint32& count) {
 }
 
 void KmerCollection::readAllBin() {
+  //unordered_map<uint32, uint64> id2enar;//id2enar -> id to en array number mapper
+  vector<uint64> id2enar;
   char fname[256];
   int unique = 0;
   int total = 0;
@@ -455,7 +458,7 @@ void KmerCollection::readAllBin() {
   string current_ref;
   if (mOptions->kmerKeyLen == 0 || mOptions->kmerKeyLen > 32)
     cerr << "plase specify a <= 32 kmer length (default = 25 )"  << endl;
-  
+  uint64 coll_num = 0;
   while(!mFile.eof()){
     //-- reading name
     mFile.getline(fname, 256);
@@ -474,13 +477,14 @@ void KmerCollection::readAllBin() {
     mCoverage.push_back(0.0);
     mMedianHits.push_back(0);
     mGenomeReads.push_back(0);
+    id2enar.push_back(0);
     mNumber++;
 
     //-- read content
 
     uint64_t ksize;
     mFile.read(reinterpret_cast<char*>(&ksize), 8);
-    //cerr << mNumber << ": " << current_ref << " kmer size: " << ksize << endl;
+    cerr << mNumber << ": " << current_ref << " kmer size: " << ksize << endl;
     uint64_t *kmers = new uint64_t[ksize];
     mFile.read(reinterpret_cast<char*>(kmers), ksize * 8);
     for(int i = 0; i < ksize; ++i){
@@ -491,25 +495,53 @@ void KmerCollection::readAllBin() {
       if (mHashKCH[kmerhash] == 0)
       {
         unique++;
-        mHashKCH[kmerhash] = mNumber;
-        allKmer64[mNumber - 1].push_back(kmer64);
+        //mHashKCH[kmerhash] = mNumber;
+        //allKmer64[mNumber - 1].push_back(kmer64);
+        //-----------------------
+        //if (curr >= unique)
+        //  error_exit("Uninque number incorrectly calculated in k-mer collection initialization.");
+        //mHashKCH[kmerhash] = mNumber; // 0 means no hit
+        //mKCHits[cur].mID = i;
+        //mKCHits[cur].mHit = 0;
+        //mKCHits[cur].mKey64 = kmer64;
+        mKCHits.push_back(KCHit{kmer64, mNumber-1, 0});
+        mUniqueHashNum++;
+        mHashKCH[kmerhash] = mUniqueHashNum; // 0 means no hit
+        id2enar[mNumber-1]++;
+        //-----------------------
       }
-      else if (mHashKCH[kmerhash] != COLLISION_FLAG)
-      { // we use the mHits as a flag
-        if (mHashKCH[kmerhash] == mNumber)
-          unique--;
-        else
-        {
-          int collID = mHashKCH[kmerhash] - 1;
-          mKmerCounts[collID]--;
-        }
-        mHashKCH[kmerhash] = COLLISION_FLAG;
+      else{
+        coll_num++;
+        KCHit& coll_kch = mKCHits[mHashKCH[kmerhash]];
+        const uint32 coll_id = coll_kch.mID;
+        const uint32 my_id = mNumber-1;
+        if(id2enar[my_id] < id2enar[coll_id]+1){ 
+          coll_kch = KCHit{kmer64, mNumber-1, 0};
+          id2enar[my_id]++;
+          id2enar[coll_id]--;
+        } 
       }
+      //else if (mHashKCH[kmerhash] != COLLISION_FLAG)
+      //{ // we use the mHits as a flag
+      //  if (mHashKCH[kmerhash] == mNumber){
+      //    unique--;
+      //    mUniqueHashNum--;
+      //  }else{
+      //    int collID = mHashKCH[kmerhash] - 1;
+      //    //cout << "collID " << collID << endl;
+      //    //cout << "count: " << mKmerCounts[collID] << endl;
+      //    //mKmerCounts[collID]--;
+      //  }
+      //  mHashKCH[kmerhash] = COLLISION_FLAG;
+      //}
     }
     delete [] kmers;
   }
+  cout << "write over! " << "conflict number: " << coll_num 
+      << " and unique number: " << mUniqueHashNum << endl; 
+  /*
   mKmerCounts.push_back(unique);
-
+  mKmerCounts.push_back(unique);
   mUniqueHashNum = 0;
   for (int i = 0; i < mNumber; i++)
     mUniqueHashNum += mKmerCounts[i];
@@ -538,4 +570,39 @@ void KmerCollection::readAllBin() {
       }
     }
   }
+  */
 }
+/*
+void merCollection::w_init_thread(mNumber){
+  while (true)
+  {
+    std::pair<uint64_t *, uint64_t> &data = dq.front();
+    uint64_t* kmers = data.first;
+    uint64 ksize = data.second;
+    for(int i = 0; i < ksize; ++i){
+      uint64_t kmer64 = kmers[i];
+      uint64 kmerhash = makeHash(kmer64);
+      //unordered_map<uint64, KCHit>::iterator iter = hashKmerMap.find(kmerhash);
+      if (mHashKCH[kmerhash] == 0)
+      {
+        unique++;
+        //-----------------------
+        mKCHits.push_back(KCHit{kmer64, mNumber-1, 0});
+        mUniqueHashNum++;
+        mHashKCH[kmerhash] = mUniqueHashNum; // 0 means no hit
+        id2enar[mNumber-1]++;
+        //-----------------------
+      }else{
+        coll_num++;
+        uint32 coll_id = mKCHits[mHashKCH[kmerhash]].mID;
+        uint32 my_id = mNumber-1;
+        if(id2enar[my_id] < id2enar[coll_id]+1){ 
+          mKCHits[mHashKCH[kmerhash]] = KCHit{kmer64, mNumber-1, 0};
+          id2enar[my_id]++;
+          id2enar[coll_id]--;
+        } 
+      }
+    }
+  }
+}
+*/
