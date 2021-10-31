@@ -13,11 +13,16 @@
 #include <iostream>
 #include <fstream>
 #include <mutex>
+#include <deque>
+#include <thread>
+#include "./io/DataQueue.h"
 
 #define  MTX_COUNT 100
 #define COLLISION_FLAG 0xFFFFFFFF
 
 using namespace std;
+
+typedef rabbit::core::TDataQueue<std::tuple<uint32, uint64_t*, uint64> > data_queue_t;
 
 class KCResult {
 public:
@@ -42,6 +47,11 @@ struct KCHit{
   uint32 mHit;
 };
 
+struct KC_t{
+  uint32 mID;
+  uint32 mHit;
+};
+
 class KmerCollection
 {
 public:
@@ -53,6 +63,7 @@ public:
     void reportHTML(ofstream& ofs);
     uint32 add(uint64 kmer64);
     void addGenomeRead(uint32 genomeID);
+    void mul_thread_init();
     void readAllBin();
 
     uint32 packIdCount(uint32 id, uint32 count);
@@ -89,6 +100,9 @@ private:
     uint32 mCountMax;
     bool mStatDone;
     uint32 mUniqueNumber;
+    unordered_map<uint64,  KCHit> map_kmer2kch;
+    mutex mLock;
+    data_queue_t mdq;
 };
 
 

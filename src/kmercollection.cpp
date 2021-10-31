@@ -171,6 +171,7 @@ void KmerCollection::init()
         mFile.open(mFilename.c_str(), ifstream::in | ifstream::binary);
         mZipped = false;
         readAllBin();
+        //mul_thread_init();
         return;
     } else {
         error_exit("Not a FASTA file: " + mFilename);
@@ -481,7 +482,6 @@ void KmerCollection::readAllBin() {
     mNumber++;
 
     //-- read content
-
     uint64_t ksize;
     mFile.read(reinterpret_cast<char*>(&ksize), 8);
     cerr << mNumber << ": " << current_ref << " kmer size: " << ksize << endl;
@@ -572,37 +572,98 @@ void KmerCollection::readAllBin() {
   }
   */
 }
-/*
-void merCollection::w_init_thread(mNumber){
-  while (true)
+
+void KmerCollection::mul_thread_init(){
+  auto lambda_rf = [&]() -> void
   {
-    std::pair<uint64_t *, uint64_t> &data = dq.front();
-    uint64_t* kmers = data.first;
-    uint64 ksize = data.second;
-    for(int i = 0; i < ksize; ++i){
-      uint64_t kmer64 = kmers[i];
-      uint64 kmerhash = makeHash(kmer64);
-      //unordered_map<uint64, KCHit>::iterator iter = hashKmerMap.find(kmerhash);
-      if (mHashKCH[kmerhash] == 0)
+    vector<uint64> id2enar;
+    char fname[256];
+    int unique = 0;
+    int total = 0;
+    string current_ref;
+    if (mOptions->kmerKeyLen == 0 || mOptions->kmerKeyLen > 32)
+      cerr << "plase specify a <= 32 kmer length (default = 25 )" << endl;
+    uint64 coll_num = 0;
+    while (!mFile.eof())
+    {
+      //-- reading name
+      mFile.getline(fname, 256);
+      current_ref = string(fname);
+      if (current_ref == "")
       {
-        unique++;
-        //-----------------------
-        mKCHits.push_back(KCHit{kmer64, mNumber-1, 0});
-        mUniqueHashNum++;
-        mHashKCH[kmerhash] = mUniqueHashNum; // 0 means no hit
-        id2enar[mNumber-1]++;
-        //-----------------------
-      }else{
-        coll_num++;
-        uint32 coll_id = mKCHits[mHashKCH[kmerhash]].mID;
-        uint32 my_id = mNumber-1;
-        if(id2enar[my_id] < id2enar[coll_id]+1){ 
-          mKCHits[mHashKCH[kmerhash]] = KCHit{kmer64, mNumber-1, 0};
-          id2enar[my_id]++;
-          id2enar[coll_id]--;
-        } 
+        continue;
       }
+      if (total > 0)
+      {
+        mKmerCounts.push_back(unique);
+        total = 0;
+        unique = 0;
+      }
+      mNames.push_back(current_ref);
+      mHits.push_back(0);
+      mMeanHits.push_back(0.0);
+      mCoverage.push_back(0.0);
+      mMedianHits.push_back(0);
+      mGenomeReads.push_back(0);
+      id2enar.push_back(0);
+      mNumber++;
+
+      //-- read content
+      uint64_t ksize;
+      mFile.read(reinterpret_cast<char *>(&ksize), 8);
+      //{
+      //  lock_guard<mutex> lk(mLock);
+      //  cerr << static_cast<void *>(this) << " " << mNumber << ": " << current_ref << " kmer size: " << ksize << endl;
+      //}
+      uint64_t *kmers = new uint64_t[ksize];
+      mFile.read(reinterpret_cast<char *>(kmers), ksize * 8);
+      auto tmp = new std::tuple<uint32, uint64_t*, uint64_t>{mNumber - 1, kmers, ksize};
+      mdq.Push(mNumber, tmp);
     }
+    //mFinished = true;
+    mdq.SetCompleted();
+  };
+  auto lambda_wf = [&](unordered_map<uint64_t, KCHit> &map_kmer2kch) -> void
+  {
+    //unordered_map<uint64_t, KC_t> map_kmer2kch;
+    std::tuple<uint32, uint64_t *, uint64_t> *data;// = mdq.front();
+    rabbit::int64 uid;
+    while (mdq.Pop(uid, data))
+    {
+      uint32 ref_id;
+      uint64_t *kmers;
+      uint64_t ksize;
+      ref_id = std::get<0>(*data);
+      kmers = std::get<1>(*data);
+      ksize = std::get<2>(*data);
+      //cout << "info : " << static_cast<void *>(this) << " " << ref_id << " " << kmers << " " << ksize << endl;
+      for (int i = 0; i < ksize; ++i)
+      {
+        uint64_t kmer64 = kmers[i];
+        uint64 kmerhash = makeHash(kmer64);
+        if (!map_kmer2kch.count(kmerhash))
+        {
+          map_kmer2kch[kmerhash] = KCHit{kmer64, ref_id, 0};
+          //map_kmer2kch[kmer64] = KC_t{ref_id, 0};
+        }
+        //else
+        //{
+        //}
+      }
+      delete[] kmers;
+    }
+  };
+  std::thread rt(lambda_rf); //read function -> 1
+  vector<std::thread> wt;    //worker function -> nth
+  vector<unordered_map<uint64_t, KCHit> > maps(mOptions->thread);
+  for(int i = 0; i < mOptions->thread; i++){
+    wt.push_back(std::thread(std::bind(lambda_wf, std::ref(maps[i]))));
+  }
+  rt.join();
+  for(auto &t : wt)
+    t.join();
+  for(int i = 1; i < maps.size(); i++){
+    maps[0].insert(maps[i].begin(), maps[i].end());
+    unordered_map<uint64_t, KCHit>().swap(maps[i]);
   }
 }
-*/
