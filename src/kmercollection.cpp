@@ -101,12 +101,14 @@ void KmerCollection::stat(){
         }
     }
     */
+   for(auto& map_kmer2kch: mVec_kh2KCHit){
     for(auto& k2kch: map_kmer2kch){
       KCHit&  kch = k2kch.second;
       if(kch.mHit > 0){
         mHits[kch.mID] += kch.mHit;
         kmerHits[kch.mID].push_back(kch.mHit);
       }
+    }
     }
 
     for(int id=0; id<mNumber; id++){
@@ -161,11 +163,15 @@ uint32 KmerCollection::add(uint64 kmer64) {
 }
 uint32 KmerCollection::add_bin(uint64 kmer64) {
     uint64 kmerhash = makeHash(kmer64);
-    auto itr = map_kmer2kch.find(kmerhash);
-    if(itr != map_kmer2kch.end()){
-      if(itr->second.mKey64 = kmer64){
-        itr->second.mHit++;
-        return itr->second.mID;
+    for(auto& map_kmer2kch : mVec_kh2KCHit){
+      auto itr = map_kmer2kch.find(kmerhash);
+      if (itr != map_kmer2kch.end())
+      {
+        if (itr->second.mKey64 = kmer64)
+        {
+          itr->second.mHit++;
+          return itr->second.mID;
+        }
       }
     }
     return 0;
@@ -680,23 +686,23 @@ void KmerCollection::mul_thread_init(){
   };
   std::thread rt(lambda_rf); //read function -> 1
   vector<std::thread> wt;    //worker function -> nth
-  vector<unordered_map<uint64_t, KCHit> > maps(mOptions->thread);
+  mVec_kh2KCHit = vector<unordered_map<uint64_t, KCHit> >(mOptions->thread);
   double t1 = get_time();
   for(int i = 0; i < mOptions->thread; i++){
-    wt.push_back(std::thread(std::bind(lambda_wf, std::ref(maps[i]))));
+    wt.push_back(std::thread(std::bind(lambda_wf, std::ref(mVec_kh2KCHit[i]))));
   }
   rt.join();
   for(auto &t : wt)
     t.join();
   double t2 = get_time();
 
-  for(int i = 1; i < maps.size(); i++){
-    maps[0].insert(maps[i].begin(), maps[i].end());
-    unordered_map<uint64_t, KCHit>().swap(maps[i]);
-  }
+  //for(int i = 1; i < maps.size(); i++){
+  //  maps[0].insert(maps[i].begin(), maps[i].end());
+  //  unordered_map<uint64_t, KCHit>().swap(maps[i]);
+  //}
 
   double t3 = get_time();
-  this->map_kmer2kch = std::move(maps[0]);
+  //this->map_kmer2kch = std::move(maps[0]);
   cout << "first step time: " << t2 - t1 
         << " second step time: " << t3 - t2
         << " total time: " << t3 - t1 << endl;

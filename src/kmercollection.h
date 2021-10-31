@@ -103,7 +103,9 @@ private:
     uint32 mCountMax;
     bool mStatDone;
     uint32 mUniqueNumber;
-    unordered_map<uint64,  KCHit> map_kmer2kch;
+    //unordered_map<uint64,  KCHit> map_kmer2kch;
+    vector<unordered_map<uint64_t, KCHit> > mVec_kh2KCHit;
+
     mutex mLock;
     data_queue_t mdq;
 };
