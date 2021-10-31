@@ -132,12 +132,21 @@ bool VirusDetector::scan(string& seq) {
         }
 
         if(mKmerCollection) {
-            uint32 gid = mKmerCollection->add(key);
-            if(gid > 0) {
-                if(lastGenomeID!=0 && gid!=lastGenomeID)
-                    onlyHitOneGenome = false;
-                lastGenomeID = gid;
-            }
+          uint32 gid;
+          if (mKmerCollection->readBin)
+          {
+            gid = mKmerCollection->add_bin(key);
+          }
+          else
+          {
+            gid = mKmerCollection->add(key);
+          }
+          if (gid > 0)
+          {
+            if (lastGenomeID != 0 && gid != lastGenomeID)
+              onlyHitOneGenome = false;
+            lastGenomeID = gid;
+          }
         }
     }
 

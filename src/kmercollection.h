@@ -55,6 +55,8 @@ struct KC_t{
 class KmerCollection
 {
 public:
+    bool readBin = false;
+public:
     KmerCollection(string filename, Options* opt);
     ~KmerCollection();
     void init();
@@ -62,6 +64,7 @@ public:
     void reportJSON(ofstream& ofs);
     void reportHTML(ofstream& ofs);
     uint32 add(uint64 kmer64);
+    uint32 add_bin(uint64 kmer64);
     void addGenomeRead(uint32 genomeID);
     void mul_thread_init();
     void readAllBin();

@@ -91,6 +91,7 @@ bool KCResultComp (KCResult i, KCResult j) {
 
 void KmerCollection::stat(){
     vector<vector<int>> kmerHits(mNumber);
+    /*
     for(int i=0; i<mUniqueHashNum; i++) {
         KCHit kch = mKCHits[i];
 
@@ -98,6 +99,14 @@ void KmerCollection::stat(){
             mHits[kch.mID]+=kch.mHit;
             kmerHits[kch.mID].push_back(kch.mHit);
         }
+    }
+    */
+    for(auto& k2kch: map_kmer2kch){
+      KCHit&  kch = k2kch.second;
+      if(kch.mHit > 0){
+        mHits[kch.mID] += kch.mHit;
+        kmerHits[kch.mID].push_back(kch.mHit);
+      }
     }
 
     for(int id=0; id<mNumber; id++){
@@ -150,6 +159,17 @@ uint32 KmerCollection::add(uint64 kmer64) {
     } else
         return 0;
 }
+uint32 KmerCollection::add_bin(uint64 kmer64) {
+    uint64 kmerhash = makeHash(kmer64);
+    auto itr = map_kmer2kch.find(kmerhash);
+    if(itr != map_kmer2kch.end()){
+      if(itr->second.mKey64 = kmer64){
+        itr->second.mHit++;
+        return itr->second.mID;
+      }
+    }
+    return 0;
+}
 
 void KmerCollection::addGenomeRead(uint32 genomeID) {
     if(genomeID-1 < mGenomeReads.size())
@@ -170,8 +190,9 @@ void KmerCollection::init()
     }else if(ends_with(mFilename, ".binary") || ends_with(mFilename, ".bin")){
         mFile.open(mFilename.c_str(), ifstream::in | ifstream::binary);
         mZipped = false;
-        readAllBin();
-        //mul_thread_init();
+        //readAllBin();
+        readBin = true;
+        mul_thread_init();
         return;
     } else {
         error_exit("Not a FASTA file: " + mFilename);
@@ -593,12 +614,13 @@ void KmerCollection::mul_thread_init(){
       {
         continue;
       }
-      if (total > 0)
-      {
-        mKmerCounts.push_back(unique);
-        total = 0;
-        unique = 0;
-      }
+      //if (total > 0)
+      //{
+      //  mKmerCounts.push_back(unique);
+      //  total = 0;
+      //  unique = 0;
+      //}
+      mKmerCounts.push_back(0);
       mNames.push_back(current_ref);
       mHits.push_back(0);
       mMeanHits.push_back(0.0);
@@ -631,6 +653,7 @@ void KmerCollection::mul_thread_init(){
     while (mdq.Pop(uid, data))
     {
       uint32 ref_id;
+      uint64_t unique = 0;
       uint64_t *kmers;
       uint64_t ksize;
       ref_id = std::get<0>(*data);
@@ -644,26 +667,39 @@ void KmerCollection::mul_thread_init(){
         if (!map_kmer2kch.count(kmerhash))
         {
           map_kmer2kch[kmerhash] = KCHit{kmer64, ref_id, 0};
+          unique++;
           //map_kmer2kch[kmer64] = KC_t{ref_id, 0};
         }
         //else
         //{
         //}
       }
+      mKmerCounts[ref_id] = unique;
       delete[] kmers;
     }
   };
   std::thread rt(lambda_rf); //read function -> 1
   vector<std::thread> wt;    //worker function -> nth
   vector<unordered_map<uint64_t, KCHit> > maps(mOptions->thread);
+  double t1 = get_time();
   for(int i = 0; i < mOptions->thread; i++){
     wt.push_back(std::thread(std::bind(lambda_wf, std::ref(maps[i]))));
   }
   rt.join();
   for(auto &t : wt)
     t.join();
+  double t2 = get_time();
+
   for(int i = 1; i < maps.size(); i++){
     maps[0].insert(maps[i].begin(), maps[i].end());
     unordered_map<uint64_t, KCHit>().swap(maps[i]);
   }
+
+  double t3 = get_time();
+  this->map_kmer2kch = std::move(maps[0]);
+  cout << "first step time: " << t2 - t1 
+        << " second step time: " << t3 - t2
+        << " total time: " << t3 - t1 << endl;
+  //process mKmerCount
+
 }
