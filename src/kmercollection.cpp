@@ -27,6 +27,40 @@ KmerCollection::KmerCollection(string filename, Options* opt)
     mCountMax = 0;
     mStatDone = false;
     mUniqueHashNum = 0;
+
+    //change
+    //mycollect_num = 0;
+    double my_s_1 = get_time();
+    atomic_lock_size = 256;
+    atomic_lock_size_mask = atomic_lock_size - 1;
+    atomic_lock = new atomic_flag[atomic_lock_size];
+    double my_e_1 = get_time();
+    std::cout << "add time1 = " << (my_e_1 - my_s_1) << std::endl;
+    double my_s_2 = get_time();
+    memset(atomic_lock, 0, sizeof(atomic_flag) * atomic_lock_size);
+    double my_e_2 = get_time();
+    std::cout << "add time2 = " << (my_e_2 - my_s_2) << std::endl;
+    //for(unsigned i = 0; i < atomic_lock_size; ++i)
+    //    atomic_lock[i] = ATOMIC_FLAG_INIT;
+    //KCHitmap.resize(HASH_LENGTH);
+    double my_s_3 = get_time();
+    KCHitmap = new KCHit[HASH_LENGTH];
+    double my_e_3 = get_time();
+    std::cout << "add time3 = " << (my_e_3 - my_s_3) << std::endl;
+    double my_s_4 = get_time();
+    #pragma omp parallel for num_threads(32)
+    for(unsigned i = 0; i < HASH_LENGTH; ++i)
+    {
+        KCHitmap[i].mKey64 = 0;
+        //*(uint64_t*)(&(KCHitmap[i].mID)) = 0;
+        KCHitmap[i].mID = 0;
+        KCHitmap[i].mHit = 0;
+    }
+    //memset(KCHitmap, 0, sizeof(KCHit) * HASH_LENGTH);
+    double my_e_4 = get_time();
+    std::cout << "***add time4 = " << (my_e_4 - my_s_4) << std::endl;
+    //change
+
     //mKCHits = NULL;
     init();
     double e = get_time();
@@ -35,6 +69,11 @@ KmerCollection::KmerCollection(string filename, Options* opt)
 
 KmerCollection::~KmerCollection()
 {
+    //change
+    if(KCHitmap)
+        delete [] KCHitmap;
+    //change
+
     if(mHashKCH) {
         delete mHashKCH;
         mHashKCH = NULL;
@@ -101,15 +140,25 @@ void KmerCollection::stat(){
         }
     }
     */
-   for(auto& map_kmer2kch: mVec_kh2KCHit){
-    for(auto& k2kch: map_kmer2kch){
-      KCHit&  kch = k2kch.second;
-      if(kch.mHit > 0){
-        mHits[kch.mID] += kch.mHit;
-        kmerHits[kch.mID].push_back(kch.mHit);
-      }
-    }
-    }
+   //change
+   //for(auto& map_kmer2kch: mVec_kh2KCHit){
+   // for(auto& k2kch: map_kmer2kch){
+   //   KCHit&  kch = k2kch.second;
+   //   if(kch.mHit > 0){
+   //     mHits[kch.mID] += kch.mHit;
+   //     kmerHits[kch.mID].push_back(kch.mHit);
+   //   }
+   // }
+   // }
+   for(unsigned i = 0; i < HASH_LENGTH; ++i)
+   {
+       if(KCHitmap[i].mHit > 0)
+       {
+           mHits[KCHitmap[i].mID] += KCHitmap[i].mHit;
+           kmerHits[KCHitmap[i].mID].push_back(KCHitmap[i].mHit);
+       }
+   }
+   //change
 
     for(int id=0; id<mNumber; id++){
         if(mKmerCounts[id] ==  0) {
@@ -163,18 +212,28 @@ uint32 KmerCollection::add(uint64 kmer64) {
 }
 uint32 KmerCollection::add_bin(uint64 kmer64) {
     uint64 kmerhash = makeHash(kmer64);
-    for(auto& map_kmer2kch : mVec_kh2KCHit){
-      auto itr = map_kmer2kch.find(kmerhash);
-      if (itr != map_kmer2kch.end())
-      {
-        if (itr->second.mKey64 = kmer64)
-        {
-          itr->second.mHit++;
-          return itr->second.mID;
-        }
-      }
+    //change
+    //for(auto& map_kmer2kch : mVec_kh2KCHit){
+    //  auto itr = map_kmer2kch.find(kmerhash);
+    //  if (itr != map_kmer2kch.end())
+    //  {
+    //    if (itr->second.mKey64 = kmer64)
+    //    {
+    //      itr->second.mHit++;
+    //      return itr->second.mID;
+    //    }
+    //  }
+    //}
+    //return 0;
+    //return KCHitmap[kmerhash].mID;
+    //if(KCHitmap[kmerhash].mKey64 == kmer64)
+    if(KCHitmap[kmerhash].mKey64 == kmer64)
+    {
+        ++KCHitmap[kmerhash].mHit;
+        return KCHitmap[kmerhash].mID;
     }
     return 0;
+    //change
 }
 
 void KmerCollection::addGenomeRead(uint32 genomeID) {
@@ -670,12 +729,30 @@ void KmerCollection::mul_thread_init(){
       {
         uint64_t kmer64 = kmers[i];
         uint64 kmerhash = makeHash(kmer64);
-        if (!map_kmer2kch.count(kmerhash))
+        //change
+        unsigned index = kmerhash & atomic_lock_size_mask;
+        //while(atomic_lock[index].test_and_set());
+        while(atomic_lock[index].test_and_set());
+
+        if(KCHitmap[kmerhash].mKey64 == 0)
         {
-          map_kmer2kch[kmerhash] = KCHit{kmer64, ref_id, 0};
-          unique++;
-          //map_kmer2kch[kmer64] = KC_t{ref_id, 0};
+            ++unique;
+            //KCHitmap[kmerhash] = KCHit{kmer64, ref_id, 0};
+            KCHitmap[kmerhash].mKey64 = kmer64;
+            //*((uint64*)(&(KCHitmap[kmerhash].mID))) = ref_id;
+            KCHitmap[kmerhash].mID = ref_id;
+            KCHitmap[kmerhash].mHit = 0;
+
         }
+
+        atomic_lock[index].clear();
+        //if (!map_kmer2kch.count(kmerhash))
+        //{
+        //  map_kmer2kch[kmerhash] = KCHit{kmer64, ref_id, 0};
+        //  unique++;
+        //  //map_kmer2kch[kmer64] = KC_t{ref_id, 0};
+        //}
+        //change
         //else
         //{
         //}
@@ -706,6 +783,8 @@ void KmerCollection::mul_thread_init(){
   cout << "first step time: " << t2 - t1 
         << " second step time: " << t3 - t2
         << " total time: " << t3 - t1 << endl;
+
+  //std::cout << "collect num = " << mycollect_num << std::endl;
   //process mKmerCount
 
 }

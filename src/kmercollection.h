@@ -17,6 +17,11 @@
 #include <thread>
 #include "./io/DataQueue.h"
 
+//change
+#include <atomic>
+#include "omp.h"
+//change
+
 #define  MTX_COUNT 100
 #define COLLISION_FLAG 0xFFFFFFFF
 
@@ -108,6 +113,16 @@ private:
 
     mutex mLock;
     data_queue_t mdq;
+
+//change
+public:
+    unsigned atomic_lock_size;
+    unsigned atomic_lock_size_mask;
+    std::atomic_flag *atomic_lock;
+    //vector<KCHit> KCHitmap;
+    KCHit *KCHitmap;
+    //atomic_ulong mycollect_num;
+//change
 };
 
 
