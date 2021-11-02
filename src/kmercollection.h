@@ -20,6 +20,13 @@
 //change
 #include <atomic>
 #include "omp.h"
+
+class padding_atomic_lock
+{
+    public:
+        std::atomic_flag at_lock;
+        char padding_arr[63];
+};
 //change
 
 #define  MTX_COUNT 100
@@ -118,7 +125,8 @@ private:
 public:
     unsigned atomic_lock_size;
     unsigned atomic_lock_size_mask;
-    std::atomic_flag *atomic_lock;
+    //std::atomic_flag *atomic_lock;
+    padding_atomic_lock *atomic_lock;
     //vector<KCHit> KCHitmap;
     KCHit *KCHitmap;
     //atomic_ulong mycollect_num;
