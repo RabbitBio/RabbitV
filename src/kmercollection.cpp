@@ -31,7 +31,7 @@ KmerCollection::KmerCollection(string filename, Options* opt)
     //change
     //mycollect_num = 0;
     double my_s_1 = get_time();
-    atomic_lock_size = 256;
+    atomic_lock_size = 512;
     atomic_lock_size_mask = atomic_lock_size - 1;
     //atomic_lock = new atomic_flag[atomic_lock_size];
     atomic_lock = new padding_atomic_lock[atomic_lock_size];
