@@ -18,8 +18,6 @@ KmerCollection::KmerCollection(string filename, Options* opt)
 {
     double s = get_time();
     mOptions = opt;
-    mHashKCH = new uint32[HASH_LENGTH];
-    memset(mHashKCH, 0, sizeof(uint32)*HASH_LENGTH);
     mFilename = filename;
     mNumber = 0;
     mIdBits = 0;
@@ -27,6 +25,7 @@ KmerCollection::KmerCollection(string filename, Options* opt)
     mCountMax = 0;
     mStatDone = false;
     mUniqueHashNum = 0;
+    mHashKCH = NULL;
 
     //change
     //mycollect_num = 0;
@@ -132,35 +131,30 @@ bool KCResultComp (KCResult i, KCResult j) {
 
 void KmerCollection::stat(){
     vector<vector<int>> kmerHits(mNumber);
-    /*
-    for(int i=0; i<mUniqueHashNum; i++) {
+    if (!readBin) 
+    {
+      for (int i = 0; i < mUniqueHashNum; i++)
+      {
         KCHit kch = mKCHits[i];
 
-        if(kch.mHit>0) {
-            mHits[kch.mID]+=kch.mHit;
-            kmerHits[kch.mID].push_back(kch.mHit);
+        if (kch.mHit > 0)
+        {
+          mHits[kch.mID] += kch.mHit;
+          kmerHits[kch.mID].push_back(kch.mHit);
         }
+      }
+    }else{
+      //change
+      for(unsigned i = 0; i < HASH_LENGTH; ++i)
+      {
+          if(KCHitmap[i].mHit > 0)
+          {
+              mHits[KCHitmap[i].mID] += KCHitmap[i].mHit;
+              kmerHits[KCHitmap[i].mID].push_back(KCHitmap[i].mHit);
+          }
+      }
     }
-    */
-   //change
-   //for(auto& map_kmer2kch: mVec_kh2KCHit){
-   // for(auto& k2kch: map_kmer2kch){
-   //   KCHit&  kch = k2kch.second;
-   //   if(kch.mHit > 0){
-   //     mHits[kch.mID] += kch.mHit;
-   //     kmerHits[kch.mID].push_back(kch.mHit);
-   //   }
-   // }
-   // }
-   for(unsigned i = 0; i < HASH_LENGTH; ++i)
-   {
-       if(KCHitmap[i].mHit > 0)
-       {
-           mHits[KCHitmap[i].mID] += KCHitmap[i].mHit;
-           kmerHits[KCHitmap[i].mID].push_back(KCHitmap[i].mHit);
-       }
-   }
-   //change
+    //change
 
     for(int id=0; id<mNumber; id++){
         if(mKmerCounts[id] ==  0) {
@@ -215,20 +209,6 @@ uint32 KmerCollection::add(uint64 kmer64) {
 uint32 KmerCollection::add_bin(uint64 kmer64) {
     uint64 kmerhash = makeHash(kmer64);
     //change
-    //for(auto& map_kmer2kch : mVec_kh2KCHit){
-    //  auto itr = map_kmer2kch.find(kmerhash);
-    //  if (itr != map_kmer2kch.end())
-    //  {
-    //    if (itr->second.mKey64 = kmer64)
-    //    {
-    //      itr->second.mHit++;
-    //      return itr->second.mID;
-    //    }
-    //  }
-    //}
-    //return 0;
-    //return KCHitmap[kmerhash].mID;
-    //if(KCHitmap[kmerhash].mKey64 == kmer64)
     if(KCHitmap[kmerhash].mKey64 == kmer64)
     {
         ++KCHitmap[kmerhash].mHit;
@@ -264,6 +244,11 @@ void KmerCollection::init()
     } else {
         error_exit("Not a FASTA file: " + mFilename);
     }
+
+    // only the input kmer collection is not .bin file, will we init the `mHashKCH`
+    // otherwise use `KCHitmap`
+    mHashKCH = new uint32[HASH_LENGTH];
+    memset(mHashKCH, 0, sizeof(uint32)*HASH_LENGTH);
 
     //unordered_map<uint64, KCHit> hashKmerMap;
 
@@ -597,8 +582,7 @@ void KmerCollection::readAllBin() {
         mHashKCH[kmerhash] = mUniqueHashNum; // 0 means no hit
         id2enar[mNumber-1]++;
         //-----------------------
-      }
-      else{
+      }else{
         coll_num++;
         KCHit& coll_kch = mKCHits[mHashKCH[kmerhash]];
         const uint32 coll_id = coll_kch.mID;
@@ -607,7 +591,7 @@ void KmerCollection::readAllBin() {
           coll_kch = KCHit{kmer64, mNumber-1, 0};
           id2enar[my_id]++;
           id2enar[coll_id]--;
-        } 
+        }
       }
       //else if (mHashKCH[kmerhash] != COLLISION_FLAG)
       //{ // we use the mHits as a flag
@@ -748,16 +732,6 @@ void KmerCollection::mul_thread_init(){
         }
 
         atomic_lock[index].at_lock.clear();
-        //if (!map_kmer2kch.count(kmerhash))
-        //{
-        //  map_kmer2kch[kmerhash] = KCHit{kmer64, ref_id, 0};
-        //  unique++;
-        //  //map_kmer2kch[kmer64] = KC_t{ref_id, 0};
-        //}
-        //change
-        //else
-        //{
-        //}
       }
       mKmerCounts[ref_id] = unique;
       delete[] kmers;
@@ -774,11 +748,6 @@ void KmerCollection::mul_thread_init(){
   for(auto &t : wt)
     t.join();
   double t2 = get_time();
-
-  //for(int i = 1; i < maps.size(); i++){
-  //  maps[0].insert(maps[i].begin(), maps[i].end());
-  //  unordered_map<uint64_t, KCHit>().swap(maps[i]);
-  //}
 
   double t3 = get_time();
   //this->map_kmer2kch = std::move(maps[0]);

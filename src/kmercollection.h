@@ -47,12 +47,6 @@ public:
     int mUniqueReads;
 };
 
-//class KCHit {
-//public:
-//    uint64 mKey64;
-//    uint32 mID;
-//    uint32 mHit;
-//};
 struct KCHit{
   uint64 mKey64;
   uint32 mID;
