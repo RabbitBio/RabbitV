@@ -30,15 +30,15 @@ KmerCollection::KmerCollection(string filename, Options* opt)
     //change
     //mycollect_num = 0;
     double my_s_1 = get_time();
-    atomic_lock_size = 512;
-    atomic_lock_size_mask = atomic_lock_size - 1;
+    //atomic_lock_size = 512;
+    //atomic_lock_size_mask = atomic_lock_size - 1;
     //atomic_lock = new atomic_flag[atomic_lock_size];
-    atomic_lock = new padding_atomic_lock[atomic_lock_size];
+    //atomic_lock = new padding_atomic_lock[atomic_lock_size];
     double my_e_1 = get_time();
     std::cout << "add time1 = " << (my_e_1 - my_s_1) << std::endl;
     double my_s_2 = get_time();
     //memset(atomic_lock, 0, sizeof(atomic_flag) * atomic_lock_size);
-    memset(atomic_lock, 0, sizeof(padding_atomic_lock) * atomic_lock_size);
+    //memset(atomic_lock, 0, sizeof(padding_atomic_lock) * atomic_lock_size);
     double my_e_2 = get_time();
     std::cout << "add time2 = " << (my_e_2 - my_s_2) << std::endl;
     //for(unsigned i = 0; i < atomic_lock_size; ++i)
@@ -718,20 +718,25 @@ void KmerCollection::mul_thread_init(){
         //change
         unsigned index = kmerhash & atomic_lock_size_mask;
         //while(atomic_lock[index].test_and_set());
-        while(atomic_lock[index].at_lock.test_and_set());
-
-        if(KCHitmap[kmerhash].mKey64 == 0)
+        //while(atomic_lock[index].at_lock.test_and_set());
+        if(__sync_bool_compare_and_swap(&(KCHitmap[kmerhash].mKey64), 0,     kmer64))
         {
-            ++unique;
-            //KCHitmap[kmerhash] = KCHit{kmer64, ref_id, 0};
-            KCHitmap[kmerhash].mKey64 = kmer64;
-            //*((uint64*)(&(KCHitmap[kmerhash].mID))) = ref_id;
-            KCHitmap[kmerhash].mID = ref_id;
-            KCHitmap[kmerhash].mHit = 0;
-
+          ++unique;
+          KCHitmap[kmerhash].mID = ref_id;
+          KCHitmap[kmerhash].mHit = 0;
         }
+        //if(KCHitmap[kmerhash].mKey64 == 0)
+        //{
+        //    ++unique;
+        //    //KCHitmap[kmerhash] = KCHit{kmer64, ref_id, 0};
+        //    KCHitmap[kmerhash].mKey64 = kmer64;
+        //    //*((uint64*)(&(KCHitmap[kmerhash].mID))) = ref_id;
+        //    KCHitmap[kmerhash].mID = ref_id;
+        //    KCHitmap[kmerhash].mHit = 0;
 
-        atomic_lock[index].at_lock.clear();
+        //}
+
+        //atomic_lock[index].at_lock.clear();
       }
       mKmerCounts[ref_id] = unique;
       delete[] kmers;
