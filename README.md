@@ -2,7 +2,6 @@
 RabbitV is an ultra-fast tool for identification of SARS-CoV-2 and other microbes from sequencing data. It detects microbial sequences from FASTQ data, generates JSON reports and visualizes the result in HTML reports. This tool can be used to detect viral infectious diseases, like COVID-19. This tool supports both short reads (Illumina, BGI, etc.) and long reads (ONT, PacBio, etc.)
 
 * [Examples](#take-a-quick-glance-of-the-informative-report)
-* [How it works?](#quick-example)
 * [Understand the input](#understand-the-input)
 * [Download or build RabbitV](#get-RabbitV)
 * [Screenshot](#screenshot)
@@ -16,15 +15,8 @@ RabbitV is an ultra-fast tool for identification of SARS-CoV-2 and other microbe
 * get RabbitV and use following command for testing: 
 ```shell
 # make sure that SARS-CoV-2.kmer.fa and SARS-CoV-2.genomes.fa are in the ./data folder
-./RabbitV -i ./test/testdata.fq.gz
+./RabbitV -i ./test/testdata.fq
 ```
-
-# how it works?
-`RabbitV` accepts FASTQ files as input, and then:
-1. performs data QC and quality filtering as `fastp` does (cut adapters, remove low quality reads, correct wrong bases).
-2. scans the clean data to collect the sequences that containing any unique k-mer, or can be mapped to any reference microbial genomes.
-3. makes statistics, visualizes the result in HTML format, and output the results in JSON format.
-4. outputs the on-target sequencing reads so that they can be analyzed by downstream tools.
 
 # understand the input
 `RabbitV` accepts following files as input:
@@ -41,7 +33,8 @@ Besides the HTML/JSON reports, RabbitV also can output the sequence reads that c
 * is clean data after quality filtering
 * the file names can be specified by `-o` for SE data, or `-o` and `-O` for PE data.
 
-You can download `k-mer` files, `k-mer collection` files of viruses from  http://opengene.org/uniquekmer/viral/index.html , `k-mer collection` files from [http://opengene.org/viral.kc.fasta.gz](http://opengene.org/viral.kc.fasta.gz) . For more details, you can see [https://github.com/OpenGene/UniqueKMER](https://github.com/OpenGene/UniqueKMER).
+You can download `k-mer` files of viruses from  http://opengene.org/uniquekmer/viral/index.html, 
+if you want work with kmer collections, run [RabbitUniq](https://github.com/RabbitBio/RabbitUniq) to get the kmer collection file first.
 
 # get RabbitV
 ## compile from source
@@ -52,9 +45,6 @@ git clone https://github.com/RabbitBio/RabbitV
 # step 2: build
 cd RabbitV
 make
-
-# step 3: install it to system if you have a sudo permission
-make install
 ```
 
 # options
@@ -74,12 +64,13 @@ Key options:
       --read_segment_len                           A long read will be splitted to read segments, with each <= read_segment_len (50 ~ 5000, should be < long_read_threshold). 100 by default. (int [=100])
       --bin_size                                   For coverage calculation. The genome is splitted to many bins, with each bin has a length of bin_size (1 ~ 100000), default 0 means adaptive. (int [=0])
       --kc_coverage_threshold                      For each genome in the k-mer collection FASTA, report it when its coverage > kc_coverage_threshold. Default is 0.01. (double [=0.01])
-      --kc_high_confidence_coverage_threshold      For each genome in the k-mer collection FASTA, report it as high confidence when its coverage > kc_high_confidence_coverage_threshold. Default is 0.9. (double [=0.9])
+      --kc_high_confidence_coverage_threshold      For each genome in the k-mer collection FASTA, report it as high confidence when its coverage > kc_high_confidence_coverage_threshold. Default is 0.7. (double [=0.7])
       --kc_high_confidence_median_hit_threshold    For each genome in the k-mer collection FASTA, report it as high confidence when its median hits > kc_high_confidence_median_hit_threshold. Default is 5. (int [=5])
   -j, --json                                       the json format report file name (string [=RabbitV.json])
   -h, --html                                       the html format report file name (string [=RabbitV.html])
   -R, --report_title                               should be quoted with ' or ", default is "RabbitV report" (string [=RabbitV report])
   -w, --thread                                     worker thread number, default is 4 (int [=4])
+  -K, --kmer_len                                   the uniuqe k-mer length, default is 25 (int [=25])
 ```
 Other I/O options:
 ```
@@ -147,30 +138,22 @@ QC and quality pruning options:
 # tutorials
 ## analyze metagenomics sequencing (mNGS) data
 1. download or build RabbitV
-2. download the k-mer collection for all viruses and microorganisms that have reference genomes in NCBI RefSeq:
+2. build kmer collection data:
+
 ```shell
-wget http://opengene.org/microbial.kc.fasta.gz
+time${RabbitUniq_PATH }/RabbitUniq.py \
+  --infile_list  ${infile_list} \
+  --outfile  ${outname}.bin \
+  -n 20 -k 25 -b 2000 
 ```
 3. run RabbitV:
 ```shell
-./RabbitV -i filename.fastq.gz -c microbial.kc.fasta.gz
+./RabbitV -i filename.fastq -c kmercollect.bin
 ```
 ## identify SARS-CoV-2
 1. download or build RabbitV
 2. make sure that SARS-CoV-2.kmer.fa and SARS-CoV-2.genomes.fa are in the ./data folder.
 3. run RabbitV:
 ```shell
-./RabbitV -i filename.fastq.gz -k SARS-CoV-2.kmer.fa -g SARS-CoV-2.genomes.fa
-```
-## influenza A virus subtyping
-Influenza A viruses are divided into subtypes on the basis of two proteins on the surface of the virus: hemagglutinin (HA) and neuraminidase (NA). For example, “H5N1” virus has an hemagglutinin type 5 protein and an neuraminidase type 1 protein. `RabbitV` can be used to identify the hemagglutinin type and neuraminidase type for influenza A virus from sequencing data.
-
-1. download or build RabbitV
-2. download the k-mer collection for all viruses and microorganisms that have reference genomes in NCBI RefSeq:
-```shell
-wget http://opengene.org/influenzaA.kc.fasta.gz
-```
-3. run RabbitV:
-```shell
-./RabbitV -i filename.fastq.gz -c influenzaA.kc.fasta.gz
+./RabbitV -i filename.fastq -k SARS-CoV-2.kmer.fa -g SARS-CoV-2.genomes.fa
 ```
