@@ -46,7 +46,7 @@ int main(int argc, char* argv[]){
     cmd.add<int>("read_segment_len", 0, "A long read will be splitted to read segments, with each <= read_segment_len (50 ~ 5000, should be < long_read_threshold). 100 by default.", false, 100);
     cmd.add<int>("bin_size", 0, "For coverage calculation. The genome is splitted to many bins, with each bin has a length of bin_size (1 ~ 100000), default 0 means adaptive.", false, 0);
     cmd.add<double>("kc_coverage_threshold", 0, "For each genome in the k-mer collection FASTA, report it when its coverage > kc_coverage_threshold. Default is 0.01.", false, 0.01);
-    cmd.add<double>("kc_high_confidence_coverage_threshold", 0, "For each genome in the k-mer collection FASTA, report it as high confidence when its coverage > kc_high_confidence_coverage_threshold. Default is 0.9.", false, 0.9);
+    cmd.add<double>("kc_high_confidence_coverage_threshold", 0, "For each genome in the k-mer collection FASTA, report it as high confidence when its coverage > kc_high_confidence_coverage_threshold. Default is 0.7.", false, 0.7);
     cmd.add<int>("kc_high_confidence_median_hit_threshold", 0, "For each genome in the k-mer collection FASTA, report it as high confidence when its median hits > kc_high_confidence_median_hit_threshold. Default is 5.", false, 5);
 
     // reporting

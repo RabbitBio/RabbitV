@@ -34,7 +34,7 @@ Options::Options(){
     segmentLength = 100;
     edThreshold = 8;
     kcCoverageThreshold = 0.01;
-    kcCoverageHighConfidence = 0.9;
+    kcCoverageHighConfidence = 0.7;
     kcMedianHitHighConfidence  = 10;
 }
 
@@ -192,7 +192,7 @@ bool Options::validate() {
         error_exit("K-mer collection coverage threshold (--kc_coverage_threshold) should be 0 ~ 1.0, suggest 0.01");
 
     if(kcCoverageHighConfidence < 0 || kcCoverageHighConfidence > 1)
-        error_exit("K-mer collection high confidence coverage threshold (--kc_high_confidence_coverage_threshold) should be 0 ~ 1.0, suggest 0.9");
+        error_exit("K-mer collection high confidence coverage threshold (--kc_high_confidence_coverage_threshold) should be 0 ~ 1.0, suggest 0.7");
 
     if(kcMedianHitHighConfidence < 0 || kcMedianHitHighConfidence > 10000)
         error_exit("K-mer collection high confidence median hits threshold (--kc_high_confidence_median_hit_threshold) should be 0 ~ 10000, suggest 5");
