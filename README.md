@@ -1,5 +1,5 @@
 # RabbitV
-RabbitV is a highly optimized and practical toolkitfor the detection of viruses and microorganisms in sequencing data. Itcan handle large-scale datasets such as bacterial reference genomes oncommonly used servers with limited compute resources.
+RabbitV is a highly optimized and practical toolkit for the detection of viruses and microorganisms in sequencing data. Itcan handle large-scale datasets such as bacterial reference genomes oncommonly used servers with limited compute resources.
 
 * [Examples](#take-a-quick-glance-of-the-informative-report)
 * [Understand the input](#understand-the-input)
