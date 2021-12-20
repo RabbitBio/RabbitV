@@ -9,7 +9,7 @@ RabbitV is a highly optimized and practical toolkit for the detection of viruses
 * [metagenomics data analysis](#analyze-metagenomics-sequencing-mngs-data)
 * [SARS-CoV-2 identification](#identify-sars-cov-2)
 
-# quick example for SARS-CoV-2 identification
+# Quick example for SARS-CoV-2 identification
 
 * get RabbitV and use following command for testing: 
 
@@ -18,7 +18,7 @@ RabbitV is a highly optimized and practical toolkit for the detection of viruses
 ./RabbitV -i ./test/testdata.fq
 ```
 
-# understand the input
+# The input of RabbitV
 `RabbitV` accepts following files as input:
 
 1. `FASTQ` file (required) to be scanned, can be single-end (`-i`) or paired-end (`-i` and `-I`), can be short reads (Illumina, MGI, etc.) or long reads (PacBio, ONT, etc.)
@@ -33,10 +33,12 @@ Besides the HTML/JSON reports, RabbitV also can output the sequence reads that c
 * is clean data after quality filtering
 * the file names can be specified by `-o` for SE data, or `-o` and `-O` for PE data.
 
+If you want to identify if the sequencing sample contained certain viruses and microorganisms, RabbitV support the format of [fastv](https://github.com/OpenGene/fastv).
 You can download `k-mer` files of viruses from  http://opengene.org/uniquekmer/viral/index.html, 
-if you want work with kmer collections, run [RabbitUniq](https://github.com/RabbitBio/RabbitUniq) to get the kmer collection file first.
+if you want work with kmer collections, run [RabbitUniq](https://github.com/RabbitBio/RabbitUniq) (An ultra-fast and disk-based unique k-mer generater) to get the k-mer collection file first.
+Both binary-based file format and character-based file are supported.
 
-# get RabbitV
+# Get RabbitV
 ## compile from source
 ```shell
 # step 1: get the code
@@ -135,7 +137,7 @@ QC and quality pruning options:
       --umi_skip                      if the UMI is in read1/read2, RabbitV can skip several bases following UMI, default is 0 (int [=0])
 ```
 
-# tutorials
+# Tutorials
 ## analyze metagenomics sequencing (mNGS) data
 1. download or build RabbitV
 2. build kmer collection data:
