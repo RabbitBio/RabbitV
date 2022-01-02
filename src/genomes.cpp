@@ -49,11 +49,11 @@ void Genomes::init() {
     mGenomeNum = 0;
     for(iter = genomes.begin(); iter != genomes.end() ; iter++) {
         if(mGenomeNum >= 255) {
-            cerr << "fastv only supports up to 255 genomes, other genomes will be skipped." << endl;
+            cerr << "RabbitV only supports up to 255 genomes, other genomes will be skipped." << endl;
             break;
         }
         if(iter->second.size() >= 0xFFFFFF) {
-            cerr << "fastv only supports genome size up to 16M, skip " << iter->first << " (" << iter->second.size() << " bp)" << endl;
+            cerr << "RabbitV only supports genome size up to 16M, skip " << iter->first << " (" << iter->second.size() << " bp)" << endl;
             continue;
         }
         mNames.push_back(iter->first);

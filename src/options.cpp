@@ -10,7 +10,7 @@ Options::Options(){
     in2 = "";
     out1 = "";
     out2 = "";
-    reportTitle = "fastv report";
+    reportTitle = "RabbitV report";
     thread = 1;
     compression = 2;
     phred64 = false;
@@ -174,10 +174,11 @@ bool Options::validate() {
 
     if(thread < 1) {
         thread = 1;
-    } else if(thread > 16) {
-        cerr << "WARNING: fastv uses up to 16 threads although you specified " << thread << endl;
-        // thread = 16;
-    }
+    } 
+    //else if(thread > 16) {
+    //    cerr << "WARNING:  uses up to 16 threads although you specified " << thread << endl;
+    //    // thread = 16;
+    //}
 
     if(positiveThreshold < 0.001 || positiveThreshold > 100)
         error_exit("positive threshold (-p) should be 0.001 ~ 100, suggest 0.1");

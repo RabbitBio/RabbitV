@@ -408,8 +408,8 @@ void HtmlReporter::report(VirusDetector* vd, FilterResult* result, Stats* preSta
 
     printHeader(ofs);
 
-    ofs << "<h1 style='text-align:left;'><a href='https://github.com/OpenGene/fastv' target='_blank' style='color:#663355;text-decoration:none;'>" + mOptions->reportTitle + "</a </h1>"<<endl;
-    string intro = "Created by <a href='https://github.com/OpenGene/fastv' style='color:#1F77B4'>fastv</a> v" + string(FASTV_VER)+ ", " + " an ultra-fast tool for fast identification of SARS-CoV-2 and other microbes from sequencing data";
+    ofs << "<h1 style='text-align:left;'><a href='https://github.com/RabbitBio/RabbitV' target='_blank' style='color:#663355;text-decoration:none;'>" + mOptions->reportTitle + "</a </h1>"<<endl;
+    string intro = "Created by <a href='https://github.com/RabbitBio/RabbitV' style='color:#1F77B4'>RabbitV</a> v" + string(FASTV_VER);
     ofs << "<div style='font-size:10px;font-weight:normal;text-align:left;color:#666666;padding:5px;'>" << intro << "</div>" << endl;
 
     if(vd->getKmer()) 
@@ -458,7 +458,7 @@ void HtmlReporter::report(VirusDetector* vd, FilterResult* result, Stats* preSta
 
 void HtmlReporter::printHeader(ofstream& ofs){
     ofs << "<html><head><meta http-equiv=\"content-type\" content=\"text/html;charset=utf-8\" />";
-    ofs << "<title>fastv report at " + getCurrentSystemTime() + " </title>";
+    ofs << "<title>RabbitV report at " + getCurrentSystemTime() + " </title>";
     printJS(ofs);
     printCSS(ofs);
     ofs << "</head>";
@@ -520,6 +520,6 @@ void HtmlReporter::printFooter(ofstream& ofs){
     ofs << "\n</div>" << endl;
     ofs << "<div id='footer'> ";
     ofs << "<p>"<<command<<"</p>";
-    ofs << "fastv " << FASTV_VER << ", at " << getCurrentSystemTime() << " </div>";
+    ofs << "RabbitV " << FASTV_VER << ", at " << getCurrentSystemTime() << " </div>";
     ofs << "</body></html>";
 }

@@ -18,7 +18,7 @@ mutex logmtx;
 int main(int argc, char* argv[]){
     // display version info if no argument is given
     if(argc == 1) {
-        cerr << "fastv: an ultra-fast tool for fast identification of SARS-CoV-2 and other microbes from sequencing data." << endl << "version " << FASTV_VER << endl;
+        cerr << "RabbitV version: " << FASTV_VER << endl;
         //cerr << "fastv --help to see the help"<<endl;
         //return 0;
     }
@@ -28,7 +28,7 @@ int main(int argc, char* argv[]){
         return 0;
     }
     if (argc == 2 && (strcmp(argv[1], "-v")==0 || strcmp(argv[1], "--version")==0)){
-        cerr << "fastv " << FASTV_VER << endl;
+        cerr << "RabbitV " << FASTV_VER << endl;
         return 0;
     }
     cmdline::parser cmd;
@@ -50,9 +50,9 @@ int main(int argc, char* argv[]){
     cmd.add<int>("kc_high_confidence_median_hit_threshold", 0, "For each genome in the k-mer collection FASTA, report it as high confidence when its median hits > kc_high_confidence_median_hit_threshold. Default is 5.", false, 5);
 
     // reporting
-    cmd.add<string>("json", 'j', "the json format report file name", false, "fastv.json");
-    cmd.add<string>("html", 'h', "the html format report file name", false, "fastv.html");
-    cmd.add<string>("report_title", 'R', "should be quoted with \' or \", default is \"fastv report\"", false, "fastv report");
+    cmd.add<string>("json", 'j', "the json format report file name", false, "RabbitV.json");
+    cmd.add<string>("html", 'h', "the html format report file name", false, "RabbitV.html");
+    cmd.add<string>("report_title", 'R', "should be quoted with \' or \", default is \"RabbitV report\"", false, "RabbitV report");
 
     // threading
     cmd.add<int>("thread", 'w', "worker thread number, default is 4", false, 4);
@@ -136,7 +136,7 @@ int main(int argc, char* argv[]){
     cmd.add<string>("umi_loc", 0, "specify the location of UMI, can be (index1/index2/read1/read2/per_index/per_read, default is none", false, "");
     cmd.add<int>("umi_len", 0, "if the UMI is in read1/read2, its length should be provided", false, 0);
     cmd.add<string>("umi_prefix", 0, "if specified, an underline will be used to connect prefix and UMI (i.e. prefix=UMI, UMI=AATTCG, final=UMI_AATTCG). No prefix by default", false, "");
-    cmd.add<int>("umi_skip", 0, "if the UMI is in read1/read2, fastv can skip several bases following UMI, default is 0", false, 0);
+    cmd.add<int>("umi_skip", 0, "if the UMI is in read1/read2, RabbitV can skip several bases following UMI, default is 0", false, 0);
 
     // kmerKeyLen
     cmd.add<int>("kmer_len", 'K', "the uniuqe k-mer length, default is 25", false, 25);
@@ -164,7 +164,7 @@ int main(int argc, char* argv[]){
     opt.genomeFile = cmd.get<string>("genomes");
     if(opt.kmerFile.empty() && opt.genomeFile.empty() && opt.kmerCollectionFile.empty()) {
         cerr << endl << "SARS-CoV-2 Detection Mode..." << endl;
-        cerr << "Since none of k-mer file (-k), Genomes file (-g) and k-mer_Collection file (-c) is specified, fastv will try to load SARS-CoV-2 k-mer/Genomes files from " << joinpath(fastvDir, "data") << endl;
+        cerr << "Since none of k-mer file (-k), Genomes file (-g) and k-mer_Collection file (-c) is specified, RabbitV will try to load SARS-CoV-2 k-mer/Genomes files from " << joinpath(fastvDir, "data") << endl;
         string kmerFile = joinpath(fastvDir, "data/SARS-CoV-2.kmer.fa");
         if(file_exists(kmerFile)) {
             cerr << "Found k-mer file: " << kmerFile << endl;
@@ -439,7 +439,7 @@ int main(int argc, char* argv[]){
     cerr << endl << "JSON report: " << opt.jsonFile << endl;
     cerr << "HTML report: " << opt.htmlFile << endl;
     cerr << endl << command << endl;
-    cerr << "fastv v" << FASTV_VER << ", time used: " << ttime << " seconds" << endl;
+    cerr << "RabbitV v" << FASTV_VER << ", time used: " << ttime << " seconds" << endl;
 
     return 0;
 }
