@@ -176,6 +176,7 @@ void KmerCollection::stat(){
 
     for(int id=0; id<mNumber; id++){
         if(mCoverage[id] > mOptions->kcCoverageThreshold && mKmerCounts[id] > 10) {
+        //if(mCoverage[id] > 0.0 && mKmerCounts[id] > 0) {
             KCResult kcr;
             kcr.mName = mNames[id];
             kcr.mHit = mHits[id];
@@ -219,8 +220,9 @@ uint32 KmerCollection::add_bin(uint64 kmer64) {
 }
 
 void KmerCollection::addGenomeRead(uint32 genomeID) {
-    if(genomeID-1 < mGenomeReads.size())
-        mGenomeReads[genomeID-1]++;
+    if(genomeID < mGenomeReads.size())
+        //mGenomeReads[genomeID-1]++;
+        mGenomeReads[genomeID]++;
 }
 
 void KmerCollection::init()

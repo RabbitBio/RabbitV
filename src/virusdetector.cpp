@@ -140,6 +140,7 @@ bool VirusDetector::scan(string& seq) {
           else
           {
             gid = mKmerCollection->add(key);
+            gid = gid + 1;
           }
           if (gid > 0)
           {
