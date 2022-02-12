@@ -175,8 +175,8 @@ void KmerCollection::stat(){
     }
 
     for(int id=0; id<mNumber; id++){
-        if(mCoverage[id] > mOptions->kcCoverageThreshold && mKmerCounts[id] > 10) {
-        //if(mCoverage[id] > 0.0 && mKmerCounts[id] > 0) {
+        //if(mCoverage[id] > mOptions->kcCoverageThreshold && mKmerCounts[id] > 10) {
+        if(mCoverage[id] > 0.0 && mKmerCounts[id] > 0) {
             KCResult kcr;
             kcr.mName = mNames[id];
             kcr.mHit = mHits[id];

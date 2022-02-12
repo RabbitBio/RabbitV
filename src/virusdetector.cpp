@@ -1,4 +1,5 @@
 #include "virusdetector.h"
+#include <atomic>
 
 VirusDetector::VirusDetector(Options* opt){
     mOptions = opt;
@@ -50,7 +51,7 @@ void VirusDetector::report() {
         //mGenomes->report();
     }
 }
-
+std::mutex cerr_mutex;
 bool VirusDetector::detect(Read* r) {
     if(r->length() >= mOptions->longReadThreshold) {
         // long reads, split it
@@ -67,15 +68,37 @@ bool VirusDetector::detect(Read* r) {
     string& seq = r->mSeq.mStr;
     //Sequence rSequence = ~(r->mSeq);
     //string& rseq = rSequence.mStr;
+    uint32 hitGenomeID = 0;
+    bool res = scan(seq, hitGenomeID);
+    if( hitGenomeID > 0 ){
+      std::lock_guard<std::mutex> lk(cerr_mutex);
+      cerr << r->mName << " " << hitGenomeID << " " 
+          << mKmerCollection->mNames[hitGenomeID] << endl;
+    }
 
-    return scan(seq); //| scan(rseq);
+    //return scan(seq); //| scan(rseq);
+    return res;
 }
 
-bool VirusDetector::scan(string& seq) {
+inline uint64 max_gid(unordered_map<uint64, int> &gid2count){
+  int max = 0;
+  uint64 id = 0;
+  for (auto x: gid2count){
+    //cout << x.first << " - " << x.second << endl;
+    if(x.second > max){
+      max = x.second;
+      id = x.first;
+    }
+  }
+  return id;
+}
+
+bool VirusDetector::scan(string& seq, uint32 &hitGenomeID) {
     int hitCount = 0;
 
     int keylen = mOptions->kmerKeyLen;
     //int blankBits = 64 - 2*keylen;
+    unordered_map<uint64, int> gid2count;
 
     bool onlyHitOneGenome = true;
     uint32 lastGenomeID = 0;
@@ -136,6 +159,7 @@ bool VirusDetector::scan(string& seq) {
           if (mKmerCollection->readBin)
           {
             gid = mKmerCollection->add_bin(key);
+            if (gid > 0) gid2count[gid]++;
           }
           else
           {
@@ -151,9 +175,12 @@ bool VirusDetector::scan(string& seq) {
         }
     }
 
-    if(mKmerCollection && onlyHitOneGenome && lastGenomeID>0)
+    if(mKmerCollection && onlyHitOneGenome && lastGenomeID>0){
         mKmerCollection->addGenomeRead(lastGenomeID);
+        //hitGenomeID = lastGenomeID;
+    }
 
+    hitGenomeID = max_gid(gid2count);
     bool wellMapped = false;
     //if(needAlignment && mGenomes)
     //    wellMapped = mGenomes->align(seq);

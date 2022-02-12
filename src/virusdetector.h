@@ -18,7 +18,7 @@ public:
     VirusDetector(Options* opt);
     ~VirusDetector();
     bool detect(Read* r);
-    bool scan(string& seq);
+    bool scan(string& seq, uint32 &hitGenomeID);
     void report();
 
     Kmer* getKmer() {return mKmer;}

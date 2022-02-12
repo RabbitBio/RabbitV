@@ -78,6 +78,7 @@ public:
     uint32 packIdCount(uint32 id, uint32 count);
     void unpackIdCount(uint32 data,uint32& id, uint32& count);
     void stat();
+    vector<string> mNames;
 
 private:
     bool getLine(char* line, int maxLine);
@@ -87,7 +88,6 @@ private:
     bool isHighConfidence(KCResult kcr);
 private:
     Options* mOptions;
-    vector<string> mNames;
     vector<uint64> mHits;
     vector<int> mMedianHits;
     vector<double> mMeanHits;
