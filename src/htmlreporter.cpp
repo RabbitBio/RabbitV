@@ -382,7 +382,7 @@ void HtmlReporter::printDetectionResult(ofstream& ofs, Kmer* kmer) {
     ofs << "<table class='summary_table' style='width:800px'>\n";
     string result;
     //if(kmer->getMeanHit() >= mOptions->positiveThreshold)
-    if (kmer->getCoverage() >= mOptions->positiveThreshold)
+    if (kmer->getCoverage() >= mOptions->positiveThreshold || kmer->getMeanHit() >= 500) //MeanHit for PCR amplicon judje
         result = "<font color='red'><B>POSITIVE<B></font>";
     else
         result = "NEGATIVE";
