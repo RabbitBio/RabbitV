@@ -61,6 +61,8 @@ void SingleEndProcessor::initConfig(ThreadConfig* config) {
         return;
 }
 
+//it's entire processing process adopts the producer-consumer model.
+//we use an efficient IO framework RabbitFX(https://github.com/RabbitBio/RabbitFX)
 bool SingleEndProcessor::process(){
     initOutput();
 
@@ -69,6 +71,7 @@ bool SingleEndProcessor::process(){
     FastqDataPool datapool(256, 1 << 22);
     FastqDataQueue dataqueue(128, 1);
 
+    //one producer
     std::thread producer(std::bind(&SingleEndProcessor::producerTask, this, std::ref(datapool), std::ref(dataqueue)));
 
     //TODO: get the correct cycles
@@ -79,6 +82,7 @@ bool SingleEndProcessor::process(){
         initConfig(configs[t]);
     }
 
+    //multi-consumers
     std::thread** threads = new thread*[mOptions->thread];
     for(int t=0; t<mOptions->thread; t++){
         //threads[t] = new std::thread(std::bind(&SingleEndProcessor::consumerTask, this, configs[t],fastqPool,std::ref(queue1)));
@@ -197,6 +201,7 @@ bool SingleEndProcessor::processSingleEnd(ReadPack* pack, ThreadConfig* config){
         // trim in head and tail, and apply quality cut in sliding window
         Read* r1 = mFilter->trimAndCut(or1, mOptions->trim.front1, mOptions->trim.tail1, frontTrimmed);
 
+        //PolyG 
         if(r1 != NULL) {
             if(mOptions->polyGTrim.enabled)
                 PolyX::trimPolyG(r1, config->getFilterResult(), mOptions->polyGTrim.minLen);
@@ -227,7 +232,7 @@ bool SingleEndProcessor::processSingleEnd(ReadPack* pack, ThreadConfig* config){
         config->addFilterResult(result, 1);
 
         if( r1 != NULL &&  result == PASS_FILTER) {
-
+            //detecting
             bool found = mVirusDetector->detect(r1);
 
             if(found)
@@ -323,7 +328,7 @@ void SingleEndProcessor::consumePack(ThreadConfig* config,ReadPack* pack){
     //        return;
     //    }
     //}
-    //data = mRepo.packBuffer[mRepo.readPos]; //¶ÁÒ»¸öpack
+    //data = mRepo.packBuffer[mRepo.readPos]; //ï¿½ï¿½Ò»ï¿½ï¿½pack
     //mRepo.readPos++;
 
     /*if (mRepo.readPos >= PACK_NUM_LIMIT)
@@ -338,6 +343,9 @@ void SingleEndProcessor::consumePack(ThreadConfig* config,ReadPack* pack){
 
 }
 
+//producer task
+//the data provided by the producer is guaranteed to contain complete entries, but it is not 
+//responsible for parsing the data, that's the consumer's task.
 //void SingleEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq)
 void SingleEndProcessor::producerTask(FastqDataPool &datapool, FastqDataQueue &dataqueue)
 {
@@ -345,7 +353,6 @@ void SingleEndProcessor::producerTask(FastqDataPool &datapool, FastqDataQueue &d
         loginfo("start to load data"); //debug information
     //long lastReported = 0;
     //int slept = 0; 
-    //long readNum = 0; // Ö®Ç°ÀÛ»ý¶ÁÈ¡µÄreadµÄ¸öÊý
     //bool splitSizeReEvaluated = false;
     //Read** data = new Read*[PACK_SIZE];
     //memset(data, 0, sizeof(Read*)*PACK_SIZE);
@@ -365,10 +372,11 @@ void SingleEndProcessor::producerTask(FastqDataPool &datapool, FastqDataQueue &d
             break;
 
         n_chunks++;
-
+        //push data into memory pool.
         dataqueue.Push(n_chunks, chunk);
     }
 
+    //the producer has completed it's task. Notify consumers.
     dataqueue.SetCompleted();
 
     mProduceFinished = true;
@@ -394,10 +402,10 @@ void SingleEndProcessor::producerTask(FastqDataPool &datapool, FastqDataQueue &d
     */
     
     /*
-    int count=0; // data or packÖÐreadµÄ¸öÊý
+    int count=0; // data or packï¿½ï¿½readï¿½Ä¸ï¿½ï¿½ï¿½
     bool needToBreak = false;
     while(true){
-        Read* read = reader.read(); // read()·½·¨·µ»ØÒ»¸öread¶ÔÏóÖ¸Õë
+        Read* read = reader.read(); // read()ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½readï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½
         // TODO: put needToBreak here is just a WAR for resolve some unidentified dead lock issue 
         if(!read || needToBreak){
             // the last pack
@@ -414,11 +422,11 @@ void SingleEndProcessor::producerTask(FastqDataPool &datapool, FastqDataQueue &d
         }
         data[count] = read;
         count++;
-        // configured to process only first N reads Ö»¶ÁÈëÇ°readToProcessÌõread
+        // configured to process only first N reads Ö»ï¿½ï¿½ï¿½ï¿½Ç°readToProcessï¿½ï¿½read
         if(mOptions->readsToProcess >0 && count + readNum >= mOptions->readsToProcess) {
             needToBreak = true;
         }
-        // debugÊ±Ã¿°ÙÍòÌõreadºó´òÓ¡Ò»´ÎÐÅÏ¢
+        // debugÊ±Ã¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½readï¿½ï¿½ï¿½Ó¡Ò»ï¿½ï¿½ï¿½ï¿½Ï¢
         if(mOptions->verbose && count + readNum >= lastReported + 1000000) {
             lastReported = count + readNum;
             string msg = "loaded " + to_string((lastReported/1000000)) + "M reads";
@@ -434,7 +442,7 @@ void SingleEndProcessor::producerTask(FastqDataPool &datapool, FastqDataQueue &d
             data = new Read*[PACK_SIZE];
             memset(data, 0, sizeof(Read*)*PACK_SIZE);
             // if the consumer is far behind this producer, sleep and wait to limit memory usage
-            // ¶ÁµÄ¹ý¿ìÊ± µÈ´ýconsumer ÎªÊ²Ã´ÒªµÈ£¿£¿£¿
+            // ï¿½ï¿½ï¿½Ä¹ï¿½ï¿½ï¿½Ê± ï¿½È´ï¿½consumer ÎªÊ²Ã´Òªï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½
             while(mRepo.writePos - mRepo.readPos > PACK_IN_MEM_LIMIT){
                 //cerr<<"sleep"<<endl;
                 slept++;
@@ -467,7 +475,7 @@ void SingleEndProcessor::producerTask(FastqDataPool &datapool, FastqDataQueue &d
                 }
             }* /
         }
-    }//¶ÁÈ¡readÍê³É
+    }//ï¿½ï¿½È¡readï¿½ï¿½ï¿½
     */
     
     //std::unique_lock<std::mutex> lock(mRepo.readCounterMtx);
@@ -483,6 +491,8 @@ void SingleEndProcessor::producerTask(FastqDataPool &datapool, FastqDataQueue &d
     //    delete[] data;
 }
 
+//consumer task
+//consumer are reponsible for parsing data, performing quality control, and detecting.
 //void SingleEndProcessor::consumerTask(ThreadConfig* config,mash::fq::FastqDataPool* fastqPool, FqChunkQueue& dq)
 void SingleEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datapool, FastqDataQueue& dataqueue)
 {
@@ -497,6 +507,7 @@ void SingleEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datap
     {
         vector<neoReference> seqs;
         seqs.reserve(10000);
+        //parsing data chunk
         uint64_t seqs_len = rabbit::fq::chunkFormat(chunk, seqs, true);
 
         seq_to_pro_len = seqs_len;
@@ -526,6 +537,7 @@ void SingleEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datap
 
         readNum += seq_to_pro_len;
 
+        //release data chunk
         datapool.Release(chunk);
     }
 
@@ -558,13 +570,13 @@ void SingleEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datap
         data.reserve(10000);
         Read** data2 = new Read*[PACK_SIZE];
         memset(data2, 0, sizeof(Read*)*PACK_SIZE);
-        int count = 0; // data or packÖÐreadµÄ¸öÊý
+        int count = 0; // data or packï¿½ï¿½readï¿½Ä¸ï¿½ï¿½ï¿½
         bool needToBreak = false;
         while (dq.Pop(id, fqChunk->chunk)) {
             seq_count = mash::fq::chunkFormat(fqChunk, data, true);
             //Read** data2 = new Read*[seq_count];
             //memset(data2, 0, sizeof(Read*)*seq_count);
-            // ½«¸ÃFastqDataChunk½øÐÐformat ×ª»¯³ÉpackµÄÐÎÊ½ ²¢´æ´¢µ½mRepoÖÐ
+            // ï¿½ï¿½ï¿½ï¿½FastqDataChunkï¿½ï¿½ï¿½ï¿½format ×ªï¿½ï¿½ï¿½ï¿½packï¿½ï¿½ï¿½ï¿½Ê½ ï¿½ï¿½ï¿½æ´¢ï¿½ï¿½mRepoï¿½ï¿½
             for (mash::int64 start = seq_count_start; start < seq_count_start + seq_count; start++) {
                 std::string name = std::string((char*)data[start].base + data[start].pname, data[start].lname);
                 std::string seq = std::string((char*)data[start].base + data[start].pseq, data[start].lseq);
@@ -573,7 +585,7 @@ void SingleEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datap
                 Read* read = new Read(name, seq, strand, quality, mOptions->phred64);
                 data2[count] = read;
                 count++;
-                // configured to process only first N reads Ö»¶ÁÈëÇ°readToProcessÌõread
+                // configured to process only first N reads Ö»ï¿½ï¿½ï¿½ï¿½Ç°readToProcessï¿½ï¿½read
                 // TODO
                 if (mOptions->readsToProcess > 0 && count + readNum >= mOptions->readsToProcess) {
                     needToBreak = true;
@@ -603,7 +615,7 @@ void SingleEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datap
             consumePack(config, pack);
             readNum += count; 
         }
-        //// debugÊ±Ã¿°ÙÍòÌõreadºó´òÓ¡Ò»´ÎÐÅÏ¢
+        //// debugÊ±Ã¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½readï¿½ï¿½ï¿½Ó¡Ò»ï¿½ï¿½ï¿½ï¿½Ï¢
         //if(mOptions->verbose && count + readNum >= lastReported + 1000000) {
         //    lastReported = count + readNum;
         //    string msg = "loaded " + to_string((lastReported/1000000)) + "M reads";
@@ -615,7 +627,7 @@ void SingleEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datap
         //while(mRepo.writePos <= mRepo.readPos) {
         //    if(mProduceFinished)
         //        break;
-        //    usleep(1000); // µÈ´ýÉú²úÕß²úÉúread
+        //    usleep(1000); // ï¿½È´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß²ï¿½ï¿½ï¿½read
         //}
         //std::unique_lock<std::mutex> lock(mRepo.readCounterMtx);
         //if(mProduceFinished && mRepo.writePos == mRepo.readPos){

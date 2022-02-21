@@ -429,6 +429,7 @@ int main(int argc, char* argv[]){
         }
     }
 
+    //main processing work
     Processor p(&opt);
     p.process();
     

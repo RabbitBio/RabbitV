@@ -68,6 +68,8 @@ bool VirusDetector::detect(Read* r) {
     //Sequence rSequence = ~(r->mSeq);
     //string& rseq = rSequence.mStr;
 
+    //because it's reverse complement is included in the unique kmer file or unique kmer collection file,
+    //there is no need to detect recerse comolement here.
     return scan(seq); //| scan(rseq);
 }
 
@@ -88,6 +90,7 @@ bool VirusDetector::scan(string& seq) {
 
     uint32 start = 0;
     const uint8_t mask = 0x06;
+    //map k-mer to 64-bit int.
     uint64 key = Kmer::seq2uint64(seq, start, keylen-1, valid);
     while(valid == false) {
         start++;
@@ -99,6 +102,12 @@ bool VirusDetector::scan(string& seq) {
     //chang
     int tmplen = seq.length();
     uint32 pos = start + keylen - 1;
+    //map k-mer to 64-bit int.
+    //use special encoding, use bit operations insted of branch operations to imporve running speed.
+    // A : 0
+    // C : 1
+    // T : 2
+    // G : 3
     for(; pos < tmplen;) 
     {
         key <<= 2;

@@ -75,7 +75,7 @@ void PairEndProcessor::initConfig(ThreadConfig* config) {
         return;
 }
 
-
+//the same model used for single-ended processing.
 bool PairEndProcessor::process(){
     initOutput();
 
@@ -552,6 +552,8 @@ void PairEndProcessor::producerTask()
         delete[] data;
 }
 */
+
+//producer task
 //void PairEndProcessor::producerTask(mash::fq::FastqDataPool* fastqPool, FqPairChunkQueue& dq,FqChunkQueue& dq2)
 void PairEndProcessor::producerTask(FastqDataPool& datapool, FastqDataPairQueue& dataqueue)
 {
@@ -696,6 +698,7 @@ void PairEndProcessor::consumerTask(ThreadConfig* config, FastqDataPool& datapoo
         vector<neoReference> right_seqs;
         right_seqs.reserve(10000);
 
+        //parsing data
         uint64_t left_seqs_len = rabbit::fq::chunkFormat(left_chunk, left_seqs, true);
         uint64_t right_seqs_len = rabbit::fq::chunkFormat(right_chunk, right_seqs, true);
 
