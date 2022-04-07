@@ -159,3 +159,6 @@ ${RabbitUniq_PATH }/RabbitUniq.py \
 ```shell
 ./RabbitV -i filename.fastq -k SARS-CoV-2.kmer.fa -g SARS-CoV-2.genomes.fa
 ```
+# Citation
+
+Hao Zhang, Qixin Chang, Zekun Yin, Xiaoming Xu, Yanjie Wei, Bertil Schmidt, Weiguo Liu, RabbitV: fast detection of viruses and microorganisms in sequencing data on multi-core architectures, Bioinformatics, 2022;, btac187, https://doi.org/10.1093/bioinformatics/btac187
