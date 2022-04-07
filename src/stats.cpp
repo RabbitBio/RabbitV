@@ -317,7 +317,10 @@ void Stats::moveTempArr2FinalArr(){
     tempEmpty = maxCount;
 }
 
-void Stats::statRead(Read* r) {
+#if defined __AVX512F__ && defined __AVX512VL__ && defined __AXV512BITALG__ && defined __MAVX512BW__ && defined __MAXV512VBMI2__
+
+void Stats::statRead(Read* r) 
+{
     int len = r->length();
     if(len>268435455){
         //因为mCycleQ30BasesTemp之类的临时数组是buffLen长度的8倍，
@@ -420,6 +423,89 @@ void Stats::statRead(Read* r) {
 
     mReads++;
 }
+
+#else
+void Stats::statRead(Read* r) {
+    int len = r->length();
+
+    mLengthSum += len;
+
+    if(mBufLen < len) {
+        extendBuffer(max(len + 100, (int)(len * 1.5)));
+    }
+    const char* seqstr = r->mSeq.mStr.c_str();
+    const char* qualstr = r->mQuality.c_str();
+
+    int kmer = 0;
+    bool needFullCompute = true;
+    for(int i=0; i<len; i++) {
+        char base = seqstr[i];
+        char qual = qualstr[i];
+        // get last 3 bits
+        char b = base & 0x07;
+
+        const char q20 = '5';
+        const char q30 = '?';
+
+        if(qual >= q30) {
+            mCycleQ30Bases[b][i]++;
+            mCycleQ20Bases[b][i]++;
+        } else if(qual >= q20) {
+            mCycleQ20Bases[b][i]++;
+        }
+
+        mCycleBaseContents[b][i]++;
+        mCycleBaseQual[b][i] += (qual-33);
+
+        mCycleTotalBase[i]++;
+        mCycleTotalQual[i] += (qual-33);
+
+        if(base == 'N'){
+            needFullCompute = true;
+            continue;
+        }
+
+        // 5 bases required for kmer computing
+        if(i<4)
+            continue;
+
+        // calc 5 KMER
+        // 0x3FC == 0011 1111 1100
+        if(!needFullCompute){
+            int val = base2val(base);
+            if(val < 0){
+                needFullCompute = true;
+                continue;
+            } else {
+                kmer = ((kmer<<2) & 0x3FC ) | val;
+                //mKmer[kmer]++;
+            }
+        } else {
+            bool valid = true;
+            kmer = 0;
+            for(int k=0; k<5; k++) {
+                int val = base2val(seqstr[i - 4 + k]);
+                if(val < 0) {
+                    valid = false;
+                    break;
+                }
+                kmer = ((kmer<<2) & 0x3FC ) | val;
+            }
+            if(!valid) {
+                needFullCompute = true;
+                continue;
+            } else {
+                //mKmer[kmer]++;
+                needFullCompute = false;
+            }
+        }
+
+    }
+
+    mReads++;
+}
+
+#endif
 
 int Stats::base2val(char base) {
     // (A & 0X07)>>1 = （000）
