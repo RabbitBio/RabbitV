@@ -18,7 +18,8 @@ TARGET := RabbitV
 BIN_TARGET := ${TARGET}
 
 CXX ?= g++
-CXXFLAGS := -fopenmp -std=c++11 -g -O3 -flto -funroll-loops -mavx512vl -mavx512bitalg -mavx512f -mavx512bw -mavx512vbmi2 -I${DIR_INC} $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) ${CXXFLAGS}
+#CXXFLAGS := -fopenmp -std=c++11 -g -O3 -flto -funroll-loops -mavx512vl -mavx512bitalg -mavx512f -mavx512bw -mavx512vbmi2 -I${DIR_INC} $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) ${CXXFLAGS}
+CXXFLAGS := -fopenmp -std=c++11 -g -O3 -flto -funroll-loops -march=native -I${DIR_INC} $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) ${CXXFLAGS}
 LIBS := -lz -lpthread
 LD_FLAGS := $(foreach librarydir,$(LIBRARY_DIRS),-L$(librarydir)) $(LIBS) $(LD_FLAGS)
 

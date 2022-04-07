@@ -335,7 +335,7 @@ void Stats::statRead(Read* r) {
 
     int pallTime = len/16;//向量化最多循环次数
     int leftTime = len - pallTime*16;//剩于的不能向量化的部分
-
+#if defined __AVX512F__
     const int constInt0X07 = (int)(0X07);
     const __m512i const0X07 = _mm512_set1_epi32(constInt0X07);//创建一个0X07常数向量
     const __m512i constAdd1 = _mm512_set1_epi32(1);//创建一个用于+1的常数向量
@@ -385,9 +385,15 @@ void Stats::statRead(Read* r) {
         __m512i temp = _mm512_add_epi32(storeBaseIndex, constAdd128);
         storeBaseIndex = temp;
     }
+#endif
 
     //把剩下的给一个个算了
-    for(int i = pallTime*16; i<len; i++) {
+#if defined __AVX512F__
+    for(int i = pallTime*16; i<len; i++) 
+#else
+    for(int i = 0; i<len; i++) 
+#endif
+    {
         char base = seqstr[i];
         char qual = qualstr[i];
         // get last 3 bits
