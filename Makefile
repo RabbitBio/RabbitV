@@ -23,7 +23,7 @@ LIBS := -lz -lpthread
 LD_FLAGS := $(foreach librarydir,$(LIBRARY_DIRS),-L$(librarydir)) $(LIBS) $(LD_FLAGS)
 
 
-${BIN_TARGET}:${OBJ} ${DIR_OBJ}
+${BIN_TARGET}:${DIR_OBJ} ${OBJ}
 	$(CXX) -fopenmp -g $(OBJ) -o $@ $(LD_FLAGS)
 
 ${DIR_OBJ}:
