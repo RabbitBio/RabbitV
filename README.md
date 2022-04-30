@@ -40,6 +40,7 @@ Both binary-based file format and character-based file are supported.
 
 # Get RabbitV
 ## compile from source
+- step 0: install [isa-l](https://github.com/intel/isa-l) and setting PATH and LD_LIBRARY_PATH
 ```shell
 # step 1: get the code
 git clone https://github.com/RabbitBio/RabbitV
