@@ -28,6 +28,7 @@ namespace fa {
 
 std::string getSequence(FastaDataChunk *&chunk, uint64 &pos);  // addbyxxm
 std::string getLine(FastaDataChunk *&chunk, uint64 &pos);
+int chunkListFormat(FastaChunk &fachunk, std::vector<Reference> &refs);
 int chunkFormat(FastaChunk &fachunk, std::vector<Reference> &refs);
 int chunkFormat(FastaChunk &fachunk, std::vector<Reference> &refs, int kmerSize);
 Reference getNextSeq(FastaChunk &fachunk, bool &done, uint64 &pos);

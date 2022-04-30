@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
 
-#project(io_lib)
 #openmp
 find_package(OpenMP REQUIRED)
 if(OPENMP_FOUND)
@@ -18,11 +17,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "-O3 -g -ffast-math ${CMAKE_CXX_FLAGS}")
 
 aux_source_directory(. SOURCE_LIST)
-add_library(io_lib ${SOURCE_LIST})
+add_library(rabbitio ${SOURCE_LIST})
 #message(${SOURCE_LIST})
 #include_directories(.)
 
 #add_executable (RabbitIO ${SOURCE_LIST})
 
-target_link_libraries(io_lib z)
+target_link_libraries(rabbitio z)
 #target_link_libraries(RabbitIO)

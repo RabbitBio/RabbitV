@@ -5,8 +5,8 @@ DIR_IO := ./src/io
 
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
-INCLUDE_DIRS ?=
-LIBRARY_DIRS ?=
+INCLUDE_DIRS ?= /home/haoz/tools/isa-l/include/
+LIBRARY_DIRS ?= /home/haoz/tools/isa-l/lib/
 
 SRC := $(wildcard ${DIR_SRC}/*.cpp)
 IO := $(wildcard ${DIR_IO}/*.cpp)
@@ -18,8 +18,8 @@ TARGET := RabbitV
 BIN_TARGET := ${TARGET}
 
 CXX ?= g++
-CXXFLAGS := -fopenmp -std=c++11 -g -O3 -funroll-loops -march=native -I${DIR_INC} $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) ${CXXFLAGS}
-LIBS := -lz -lpthread
+CXXFLAGS := -fopenmp -std=c++11 -g -O3 -funroll-loops -march=native -I${DIR_INC} -DUSE_IGZIP $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) ${CXXFLAGS}
+LIBS := -lz -lpthread -lisal
 LD_FLAGS := $(foreach librarydir,$(LIBRARY_DIRS),-L$(librarydir)) $(LIBS) $(LD_FLAGS)
 
 

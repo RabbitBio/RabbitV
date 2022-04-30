@@ -32,7 +32,7 @@ struct neoReference {
   uint64_t lname;   /// length of name
   uint64_t lcom;    /// length of comment
   uint64_t lseq;    /// length of sequence
-  uint64_t lqual;   /// length of quality
+	uint64_t lqual;   /// length of quality
   uint64_t lstrand; /// length of strand
   uint64_t gid;     /// global id
   rabbit::byte *base; /// base data pointer
@@ -42,5 +42,12 @@ struct neoReference {
 typedef std::vector<Reference> SeqInfos;
 /// One sequence sequence infomation, only for FASTA data
 typedef Reference OneSeqInfo;
+
+//TODO: it should support negtive number, but may cause some problem.
+inline void cutseq_neoref(neoReference& ref, uint64_t from, uint64_t to){
+	ref.pseq += from;
+	ref.pqual += from;
+	ref.lseq += (to - from + 1);
+}
 
 #endif
